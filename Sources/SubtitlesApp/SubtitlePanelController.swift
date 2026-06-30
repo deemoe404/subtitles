@@ -22,6 +22,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     private var pendingMoveRestore: DispatchWorkItem?
     private var shouldRestoreToolbarAfterMove = false
     private var isSubtitleWindowMoving = false
+    private var isSubtitleWindowResizing = false
 
     var isVisible: Bool {
         panel.isVisible
@@ -84,6 +85,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         pendingMoveRestore = nil
         shouldRestoreToolbarAfterMove = false
         isSubtitleWindowMoving = false
+        isSubtitleWindowResizing = false
         setChromeVisible(false, animated: false)
         overlayView.setCaptionReportingEnabled(false)
         panel.orderOut(nil)
@@ -119,6 +121,9 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         guard let window = notification.object as? NSWindow, window === panel else {
             return
         }
+        guard !isSubtitleWindowResizing else {
+            return
+        }
         handleSubtitlePanelMove()
     }
 
@@ -142,6 +147,25 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     }
 
     func subtitleOverlayViewDidLayout(_ view: SubtitleOverlayView) {
+        positionChromeIfVisible()
+    }
+
+    func subtitleOverlayViewDidBeginContainerResize(_ view: SubtitleOverlayView) {
+        pendingMoveRestore?.cancel()
+        pendingMoveRestore = nil
+        isSubtitleWindowMoving = false
+        isSubtitleWindowResizing = true
+        shouldRestoreToolbarAfterMove = false
+        setChromeVisible(true, animated: false)
+    }
+
+    func subtitleOverlayView(_ view: SubtitleOverlayView, didResizeContainerTo frame: NSRect) {
+        panel.setFrame(frame, display: true)
+        positionChromeIfVisible()
+    }
+
+    func subtitleOverlayViewDidEndContainerResize(_ view: SubtitleOverlayView) {
+        isSubtitleWindowResizing = false
         positionChromeIfVisible()
     }
 
@@ -233,6 +257,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
             toolbarPanel.alphaValue = animated ? 0 : 1
             toolbarPanel.orderFrontRegardless()
         }
+        overlayView.setContainerChromeVisible(visible, animated: animated)
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = animated ? 0.12 : 0
@@ -273,16 +298,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
             return true
         }
 
-        guard let subtitleFrame = overlayView.subtitleBackdropFrameInScreen() else {
-            return false
-        }
-
-        var transitFrame = subtitleFrame
-        if toolbarPanel.isVisible {
-            transitFrame = transitFrame.union(toolbarPanel.frame)
-        }
-
-        return transitFrame.insetBy(dx: -6, dy: -6).contains(mouseLocation)
+        return false
     }
 
     private func positionChromeIfVisible() {
