@@ -47,4 +47,10 @@ final class AppleTVPlaybackParserTests: XCTestCase {
             XCTAssertEqual(error as? AppleTVPlaybackError, .missingPosition)
         }
     }
+
+    func testMapsPlaybackButtonDescriptionToActualState() {
+        XCTAssertEqual(AppleTVPlaybackParser.stateFromPlaybackButtonDescription("Pause"), .playing)
+        XCTAssertEqual(AppleTVPlaybackParser.stateFromPlaybackButtonDescription("Play"), .paused)
+        XCTAssertNil(AppleTVPlaybackParser.stateFromPlaybackButtonDescription("AirPlay"))
+    }
 }

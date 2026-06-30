@@ -105,6 +105,17 @@ public struct PlaybackRenderState: Equatable, Sendable {
 }
 
 public enum AppleTVPlaybackParser {
+    public static func stateFromPlaybackButtonDescription(_ description: String?) -> AppleTVPlaybackState? {
+        switch description?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "pause":
+            return .playing
+        case "play":
+            return .paused
+        default:
+            return nil
+        }
+    }
+
     public static func parseAppleScriptResult(
         _ rawValue: String,
         observedAt: Date = Date()
