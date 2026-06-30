@@ -470,36 +470,94 @@ private struct SubtitleContainerChromeContentView: View {
                     )
 
                 HStack {
-                    SubtitleResizeHandleCue()
+                    SubtitleResizeHandleCue(side: .left)
                     Spacer(minLength: 0)
-                    SubtitleResizeHandleCue()
+                    SubtitleResizeHandleCue(side: .right)
                 }
                 .allowsHitTesting(false)
             }
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
         .environment(\.controlActiveState, .active)
     }
 }
 
-private struct SubtitleResizeHandleCue: View {
-    var body: some View {
-        ZStack {
-            Capsule()
-                .fill(.secondary.opacity(0.18))
-                .frame(width: 5)
-                .padding(.vertical, 16)
+private enum SubtitleResizeHandleSide {
+    case left
+    case right
 
-            VStack(spacing: 7) {
-                Capsule()
-                    .frame(width: 3, height: 18)
-                Capsule()
-                    .frame(width: 3, height: 18)
-                Capsule()
-                    .frame(width: 3, height: 18)
-            }
-            .foregroundStyle(.secondary.opacity(0.64))
+    var alignment: Alignment {
+        switch self {
+        case .left:
+            return .leading
+        case .right:
+            return .trailing
         }
-        .frame(width: 28)
+    }
+
+    var edge: Edge.Set {
+        switch self {
+        case .left:
+            return .leading
+        case .right:
+            return .trailing
+        }
+    }
+
+    var gradientStart: UnitPoint {
+        switch self {
+        case .left:
+            return .leading
+        case .right:
+            return .trailing
+        }
+    }
+
+    var gradientEnd: UnitPoint {
+        switch self {
+        case .left:
+            return .trailing
+        case .right:
+            return .leading
+        }
+    }
+}
+
+private struct SubtitleResizeHandleCue: View {
+    let side: SubtitleResizeHandleSide
+
+    var body: some View {
+        ZStack(alignment: side.alignment) {
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            .primary.opacity(0.20),
+                            .primary.opacity(0.08),
+                            .clear
+                        ],
+                        startPoint: side.gradientStart,
+                        endPoint: side.gradientEnd
+                    )
+                )
+
+            VStack(spacing: 6) {
+                ForEach(0..<3) { _ in
+                    Capsule()
+                        .frame(width: 3, height: 16)
+                }
+            }
+            .foregroundStyle(.primary.opacity(0.82))
+            .frame(width: 15, height: 68)
+            .background(.regularMaterial, in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(.primary.opacity(0.24), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.18), radius: 5, y: 1)
+            .padding(side.edge, 7)
+        }
+        .frame(width: SubtitlePanelGeometry.resizeEdgeThickness)
         .frame(maxHeight: .infinity)
         .contentShape(Rectangle())
         .accessibilityHidden(true)
