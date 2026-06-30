@@ -2,20 +2,15 @@
 import SubtitlesAppSupport
 
 protocol SubtitleOverlayViewDelegate: AnyObject {
-    func subtitleOverlayViewDidRequestPlayPause(_ view: SubtitleOverlayView)
-    func subtitleOverlayViewDidRequestReset(_ view: SubtitleOverlayView)
-    func subtitleOverlayView(_ view: SubtitleOverlayView, didAdjustOffsetBy delta: TimeInterval)
-    func subtitleOverlayViewDidRequestAppleTVCalibration(_ view: SubtitleOverlayView)
-    func subtitleOverlayViewDidRequestCaptionSettings(_ view: SubtitleOverlayView)
+    func subtitleOverlayViewDidEnterInteractiveArea(_ view: SubtitleOverlayView)
+    func subtitleOverlayViewDidExitInteractiveArea(_ view: SubtitleOverlayView)
+    func subtitleOverlayViewDidLayout(_ view: SubtitleOverlayView)
     func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestLoadURL url: URL)
-    func subtitleOverlayViewDidRequestClose(_ view: SubtitleOverlayView)
-    func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestScale factor: CGFloat)
 }
 
 final class SubtitleOverlayView: NSView {
     private enum TrackingRole: String {
         case subtitle
-        case toolbar
         case metadata
     }
 
@@ -39,20 +34,16 @@ final class SubtitleOverlayView: NSView {
     private let subtitleBackdropView = NSView()
     private let subtitleLabel = NSTextField(labelWithString: placeholderText)
     private let metadataLabel = NSTextField(labelWithString: "00:00.0  Offset +0.0s")
-    private let toolbarContainerView = NSView()
-    private let controlsStack = NSStackView()
-    private let playPauseButton = NSButton(title: "Play", target: nil, action: nil)
 
     private var captionAppearance = SystemCaptionAppearance.current()
     private var captionAppearanceMonitor: SystemCaptionAppearanceMonitor?
     private var playbackTime: TimeInterval = 0
     private var offset: TimeInterval = 0
-    private var isPlaying = false
     private var sourceLabel = "Manual"
     private var isReportingCaptions = true
     private var lastReportedCaptionText: String?
     private var trackingAreaRefs: [NSTrackingArea] = []
-    private var controlsAreVisible = false
+    private var metadataIsVisible = false
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -74,15 +65,12 @@ final class SubtitleOverlayView: NSView {
     override func layout() {
         super.layout()
         rebuildTrackingAreas()
+        delegate?.subtitleOverlayViewDidLayout(self)
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard isInteractivePoint(point) else {
             return nil
-        }
-
-        if controlsAreVisible, toolbarContainerView.frame.contains(point) {
-            return super.hitTest(point)
         }
 
         return self
@@ -95,17 +83,17 @@ final class SubtitleOverlayView: NSView {
 
         switch role {
         case .subtitle:
-            setControlsVisible(true)
-        case .toolbar, .metadata:
-            if controlsAreVisible {
-                setControlsVisible(true)
+            delegate?.subtitleOverlayViewDidEnterInteractiveArea(self)
+        case .metadata:
+            if metadataIsVisible {
+                delegate?.subtitleOverlayViewDidEnterInteractiveArea(self)
             }
         }
     }
 
     override func mouseExited(with event: NSEvent) {
         guard let point = currentMouseLocationInView(), isInteractivePoint(point) else {
-            setControlsVisible(false)
+            delegate?.subtitleOverlayViewDidExitInteractiveArea(self)
             return
         }
     }
@@ -122,12 +110,10 @@ final class SubtitleOverlayView: NSView {
         return true
     }
 
-    func setPlaybackState(isPlaying: Bool, time: TimeInterval, offset: TimeInterval, sourceLabel: String = "Manual") {
-        self.isPlaying = isPlaying
+    func setPlaybackState(isPlaying _: Bool, time: TimeInterval, offset: TimeInterval, sourceLabel: String = "Manual") {
         self.playbackTime = time
         self.offset = offset
         self.sourceLabel = sourceLabel
-        playPauseButton.title = isPlaying ? "Pause" : "Play"
         updateMetadata()
     }
 
@@ -160,43 +146,9 @@ final class SubtitleOverlayView: NSView {
         metadataLabel.alignment = .center
         metadataLabel.alphaValue = 0
 
-        toolbarContainerView.translatesAutoresizingMaskIntoConstraints = false
-        toolbarContainerView.wantsLayer = true
-        toolbarContainerView.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.92).cgColor
-        toolbarContainerView.layer?.cornerRadius = 8
-        toolbarContainerView.layer?.borderWidth = 1
-        toolbarContainerView.layer?.borderColor = NSColor.black.withAlphaComponent(0.12).cgColor
-        toolbarContainerView.alphaValue = 0
-        toolbarContainerView.isHidden = true
-
-        controlsStack.translatesAutoresizingMaskIntoConstraints = false
-        controlsStack.orientation = .horizontal
-        controlsStack.alignment = .centerY
-        controlsStack.distribution = .fill
-        controlsStack.spacing = 8
-
-        let controls = [
-            makeButton("W-", action: #selector(decreaseWindowSize)),
-            makeButton("W+", action: #selector(increaseWindowSize)),
-            makeButton("-0.5s", action: #selector(decreaseOffset)),
-            makeButton("+0.5s", action: #selector(increaseOffset)),
-            makeButton("Captions", action: #selector(openCaptionSettings)),
-            makeButton("Calibrate TV", action: #selector(calibrateAppleTV)),
-            playPauseButton,
-            makeButton("Reset", action: #selector(resetPlayback)),
-            makeButton("Close", action: #selector(closePanel))
-        ]
-
-        playPauseButton.target = self
-        playPauseButton.action = #selector(playPause)
-        styleButton(playPauseButton)
-        controls.forEach { controlsStack.addArrangedSubview($0) }
-
         addSubview(subtitleBackdropView)
         subtitleBackdropView.addSubview(subtitleLabel)
         addSubview(metadataLabel)
-        addSubview(toolbarContainerView)
-        toolbarContainerView.addSubview(controlsStack)
 
         NSLayoutConstraint.activate([
             subtitleBackdropView.centerXAnchor.constraint(equalTo: centerXAnchor),
@@ -211,56 +163,23 @@ final class SubtitleOverlayView: NSView {
 
             metadataLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
             metadataLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
-            metadataLabel.topAnchor.constraint(equalTo: subtitleBackdropView.bottomAnchor, constant: 8),
-
-            toolbarContainerView.centerXAnchor.constraint(equalTo: subtitleBackdropView.centerXAnchor),
-            toolbarContainerView.bottomAnchor.constraint(equalTo: subtitleBackdropView.topAnchor, constant: 4),
-            toolbarContainerView.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 12),
-            toolbarContainerView.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12),
-
-            controlsStack.leadingAnchor.constraint(equalTo: toolbarContainerView.leadingAnchor, constant: 8),
-            controlsStack.trailingAnchor.constraint(equalTo: toolbarContainerView.trailingAnchor, constant: -8),
-            controlsStack.topAnchor.constraint(equalTo: toolbarContainerView.topAnchor, constant: 4),
-            controlsStack.bottomAnchor.constraint(equalTo: toolbarContainerView.bottomAnchor, constant: -4)
+            metadataLabel.topAnchor.constraint(equalTo: subtitleBackdropView.bottomAnchor, constant: 8)
         ])
 
         updateSubtitleText()
     }
 
-    private func makeButton(_ title: String, action: Selector) -> NSButton {
-        let button = NSButton(title: title, target: self, action: action)
-        styleButton(button)
-        return button
-    }
-
-    private func styleButton(_ button: NSButton) {
-        button.bezelStyle = .rounded
-        button.controlSize = .small
-        button.font = .systemFont(ofSize: 11, weight: .medium)
-        button.setButtonType(.momentaryPushIn)
-    }
-
-    private func setControlsVisible(_ visible: Bool) {
-        guard visible != controlsAreVisible else {
+    func setMetadataVisible(_ visible: Bool) {
+        guard visible != metadataIsVisible else {
             return
         }
 
-        controlsAreVisible = visible
-        if visible {
-            toolbarContainerView.isHidden = false
-        }
+        metadataIsVisible = visible
         rebuildTrackingAreas()
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.12
-            toolbarContainerView.animator().alphaValue = visible ? 1 : 0
             metadataLabel.animator().alphaValue = visible ? 1 : 0
-        } completionHandler: { [weak self] in
-            guard let self, !self.controlsAreVisible else {
-                return
-            }
-            self.toolbarContainerView.isHidden = true
-            self.rebuildTrackingAreas()
         }
     }
 
@@ -270,11 +189,10 @@ final class SubtitleOverlayView: NSView {
 
         addTrackingArea(for: subtitleBackdropView.frame, role: .subtitle)
 
-        guard controlsAreVisible else {
+        guard metadataIsVisible else {
             return
         }
 
-        addTrackingArea(for: toolbarContainerView.frame, role: .toolbar)
         addTrackingArea(for: metadataInteractiveFrame, role: .metadata)
     }
 
@@ -316,11 +234,11 @@ final class SubtitleOverlayView: NSView {
             return true
         }
 
-        guard controlsAreVisible else {
+        guard metadataIsVisible else {
             return false
         }
 
-        return toolbarContainerView.frame.contains(point) || metadataInteractiveFrame.contains(point)
+        return metadataInteractiveFrame.contains(point)
     }
 
     private var metadataInteractiveFrame: NSRect {
@@ -337,6 +255,25 @@ final class SubtitleOverlayView: NSView {
             width: width,
             height: height
         )
+    }
+
+    func containsScreenPointInInteractiveArea(_ screenPoint: NSPoint) -> Bool {
+        guard let window else {
+            return false
+        }
+
+        let windowPoint = window.convertPoint(fromScreen: screenPoint)
+        let point = convert(windowPoint, from: nil)
+        return isInteractivePoint(point)
+    }
+
+    func subtitleBackdropFrameInScreen() -> NSRect? {
+        guard let window else {
+            return nil
+        }
+
+        let windowFrame = convert(subtitleBackdropView.frame, to: nil)
+        return window.convertToScreen(windowFrame)
     }
 
     private func startCaptionAppearanceMonitoring() {
@@ -403,39 +340,4 @@ final class SubtitleOverlayView: NSView {
         }
     }
 
-    @objc private func decreaseWindowSize() {
-        delegate?.subtitleOverlayView(self, didRequestScale: 0.9)
-    }
-
-    @objc private func increaseWindowSize() {
-        delegate?.subtitleOverlayView(self, didRequestScale: 1.1)
-    }
-
-    @objc private func decreaseOffset() {
-        delegate?.subtitleOverlayView(self, didAdjustOffsetBy: -0.5)
-    }
-
-    @objc private func increaseOffset() {
-        delegate?.subtitleOverlayView(self, didAdjustOffsetBy: 0.5)
-    }
-
-    @objc private func calibrateAppleTV() {
-        delegate?.subtitleOverlayViewDidRequestAppleTVCalibration(self)
-    }
-
-    @objc private func openCaptionSettings() {
-        delegate?.subtitleOverlayViewDidRequestCaptionSettings(self)
-    }
-
-    @objc private func playPause() {
-        delegate?.subtitleOverlayViewDidRequestPlayPause(self)
-    }
-
-    @objc private func resetPlayback() {
-        delegate?.subtitleOverlayViewDidRequestReset(self)
-    }
-
-    @objc private func closePanel() {
-        delegate?.subtitleOverlayViewDidRequestClose(self)
-    }
 }

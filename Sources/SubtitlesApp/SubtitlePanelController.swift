@@ -11,11 +11,15 @@ protocol SubtitlePanelControllerDelegate: AnyObject {
     func subtitlePanelDidRequestClose(_ panelController: SubtitlePanelController)
 }
 
-final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlayViewDelegate {
+final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlayViewDelegate, SubtitleToolbarViewDelegate {
     weak var delegate: SubtitlePanelControllerDelegate?
 
     private let panel: SubtitlePanel
     private let overlayView = SubtitleOverlayView()
+    private let toolbarPanel: SubtitlePanel
+    private let toolbarView = SubtitleToolbarView()
+    private var chromeVisible = false
+    private var pendingChromeHide: DispatchWorkItem?
 
     var isVisible: Bool {
         panel.isVisible
@@ -26,6 +30,12 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         panel = SubtitlePanel(
             contentRect: frame,
             styleMask: [.borderless, .nonactivatingPanel, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        toolbarPanel = SubtitlePanel(
+            contentRect: NSRect(x: frame.midX - 240, y: frame.maxY + 8, width: 480, height: 36),
+            styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -43,7 +53,20 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
 
+        toolbarPanel.contentView = toolbarView
+        toolbarPanel.isOpaque = false
+        toolbarPanel.backgroundColor = .clear
+        toolbarPanel.hasShadow = false
+        toolbarPanel.hidesOnDeactivate = false
+        toolbarPanel.level = .screenSaver
+        toolbarPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        toolbarPanel.titleVisibility = .hidden
+        toolbarPanel.titlebarAppearsTransparent = true
+        toolbarPanel.alphaValue = 0
+
         overlayView.delegate = self
+        toolbarView.delegate = self
+        panel.addChildWindow(toolbarPanel, ordered: .above)
     }
 
     func show() {
@@ -55,6 +78,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     }
 
     func hide() {
+        setChromeVisible(false, animated: false)
         overlayView.setCaptionReportingEnabled(false)
         panel.orderOut(nil)
     }
@@ -65,6 +89,8 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
 
     func setPlaybackState(isPlaying: Bool, time: TimeInterval, offset: TimeInterval, sourceLabel: String = "Manual") {
         overlayView.setPlaybackState(isPlaying: isPlaying, time: time, offset: offset, sourceLabel: sourceLabel)
+        toolbarView.setPlaybackState(isPlaying: isPlaying)
+        positionToolbarIfVisible()
     }
 
     func setLoadedFileName(_ fileName: String) {
@@ -72,39 +98,80 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     }
 
     func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === panel else {
+            return
+        }
         delegate?.subtitlePanelDidRequestClose(self)
     }
 
-    func subtitleOverlayViewDidRequestPlayPause(_ view: SubtitleOverlayView) {
-        delegate?.subtitlePanelDidRequestPlayPause(self)
+    func windowDidMove(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === panel else {
+            return
+        }
+        positionToolbarIfVisible()
     }
 
-    func subtitleOverlayViewDidRequestReset(_ view: SubtitleOverlayView) {
-        delegate?.subtitlePanelDidRequestReset(self)
+    func windowDidResize(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === panel else {
+            return
+        }
+        positionToolbarIfVisible()
     }
 
-    func subtitleOverlayView(_ view: SubtitleOverlayView, didAdjustOffsetBy delta: TimeInterval) {
-        delegate?.subtitlePanel(self, didAdjustOffsetBy: delta)
+    func subtitleOverlayViewDidEnterInteractiveArea(_ view: SubtitleOverlayView) {
+        setChromeVisible(true, animated: true)
     }
 
-    func subtitleOverlayViewDidRequestAppleTVCalibration(_ view: SubtitleOverlayView) {
-        delegate?.subtitlePanelDidRequestAppleTVCalibration(self)
+    func subtitleOverlayViewDidExitInteractiveArea(_ view: SubtitleOverlayView) {
+        scheduleChromeHideIfNeeded()
     }
 
-    func subtitleOverlayViewDidRequestCaptionSettings(_ view: SubtitleOverlayView) {
-        delegate?.subtitlePanelDidRequestCaptionSettings(self)
+    func subtitleOverlayViewDidLayout(_ view: SubtitleOverlayView) {
+        positionToolbarIfVisible()
     }
 
     func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestLoadURL url: URL) {
         delegate?.subtitlePanel(self, didRequestLoadURL: url)
     }
 
-    func subtitleOverlayViewDidRequestClose(_ view: SubtitleOverlayView) {
+    func subtitleToolbarViewDidEnter(_ view: SubtitleToolbarView) {
+        setChromeVisible(true, animated: true)
+    }
+
+    func subtitleToolbarViewDidExit(_ view: SubtitleToolbarView) {
+        scheduleChromeHideIfNeeded()
+    }
+
+    func subtitleToolbarView(_ view: SubtitleToolbarView, didRequestScale factor: CGFloat) {
+        scaleSubtitlePanel(by: factor)
+    }
+
+    func subtitleToolbarView(_ view: SubtitleToolbarView, didAdjustOffsetBy delta: TimeInterval) {
+        delegate?.subtitlePanel(self, didAdjustOffsetBy: delta)
+    }
+
+    func subtitleToolbarViewDidRequestCaptionSettings(_ view: SubtitleToolbarView) {
+        delegate?.subtitlePanelDidRequestCaptionSettings(self)
+    }
+
+    func subtitleToolbarViewDidRequestAppleTVCalibration(_ view: SubtitleToolbarView) {
+        delegate?.subtitlePanelDidRequestAppleTVCalibration(self)
+    }
+
+    func subtitleToolbarViewDidRequestPlayPause(_ view: SubtitleToolbarView) {
+        delegate?.subtitlePanelDidRequestPlayPause(self)
+    }
+
+    func subtitleToolbarViewDidRequestReset(_ view: SubtitleToolbarView) {
+        delegate?.subtitlePanelDidRequestReset(self)
+    }
+
+    func subtitleToolbarViewDidRequestClose(_ view: SubtitleToolbarView) {
         hide()
         delegate?.subtitlePanelDidRequestClose(self)
     }
 
-    func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestScale factor: CGFloat) {
+    private func scaleSubtitlePanel(by factor: CGFloat) {
         let current = panel.frame
         let newWidth = min(max(current.width * factor, 420), 1400)
         let newHeight = min(max(current.height * factor, 110), 360)
@@ -115,6 +182,109 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
             height: newHeight
         )
         panel.setFrame(newFrame, display: true, animate: true)
+        positionToolbarIfVisible()
+    }
+
+    private func setChromeVisible(_ visible: Bool, animated: Bool) {
+        pendingChromeHide?.cancel()
+        pendingChromeHide = nil
+
+        guard visible != chromeVisible else {
+            if visible {
+                positionToolbar()
+            }
+            return
+        }
+
+        chromeVisible = visible
+        overlayView.setMetadataVisible(visible)
+
+        if visible {
+            positionToolbar()
+            toolbarPanel.alphaValue = animated ? 0 : 1
+            toolbarPanel.orderFrontRegardless()
+        }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = animated ? 0.12 : 0
+            toolbarPanel.animator().alphaValue = visible ? 1 : 0
+        } completionHandler: { [weak self] in
+            guard let self, !self.chromeVisible else {
+                return
+            }
+            self.toolbarPanel.orderOut(nil)
+        }
+    }
+
+    private func scheduleChromeHideIfNeeded() {
+        pendingChromeHide?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.hideChromeIfMouseOutside()
+        }
+        pendingChromeHide = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16, execute: workItem)
+    }
+
+    private func hideChromeIfMouseOutside() {
+        pendingChromeHide = nil
+        guard chromeVisible, !mouseIsInsideChromeRegion() else {
+            return
+        }
+        setChromeVisible(false, animated: true)
+    }
+
+    private func mouseIsInsideChromeRegion() -> Bool {
+        let mouseLocation = NSEvent.mouseLocation
+
+        if overlayView.containsScreenPointInInteractiveArea(mouseLocation) {
+            return true
+        }
+
+        guard toolbarPanel.isVisible else {
+            return false
+        }
+
+        if toolbarPanel.frame.contains(mouseLocation) {
+            return true
+        }
+
+        guard let subtitleFrame = overlayView.subtitleBackdropFrameInScreen() else {
+            return false
+        }
+
+        return subtitleFrame.union(toolbarPanel.frame).insetBy(dx: -6, dy: -6).contains(mouseLocation)
+    }
+
+    private func positionToolbarIfVisible() {
+        guard chromeVisible else {
+            return
+        }
+        positionToolbar()
+    }
+
+    private func positionToolbar() {
+        toolbarView.layoutSubtreeIfNeeded()
+        let fittingSize = toolbarView.intrinsicContentSize
+        let screenFrame = (panel.screen ?? NSScreen.main)?.visibleFrame ?? panel.frame
+        let maxWidth = max(1, screenFrame.width - 16)
+        let width = min(ceil(fittingSize.width), maxWidth)
+        let height = ceil(fittingSize.height)
+        let subtitleFrame = overlayView.subtitleBackdropFrameInScreen() ?? panel.frame
+
+        let minimumX = screenFrame.minX + 8
+        let maximumX = screenFrame.maxX - width - 8
+        let minimumY = screenFrame.minY + 8
+        let maximumY = screenFrame.maxY - height - 8
+
+        let desiredX = subtitleFrame.midX - width / 2
+        let desiredY = subtitleFrame.maxY + 8
+        let x = min(max(desiredX, minimumX), max(minimumX, maximumX))
+        let y = min(max(desiredY, minimumY), max(minimumY, maximumY))
+
+        toolbarPanel.setFrame(
+            NSRect(x: x, y: y, width: width, height: height),
+            display: true
+        )
     }
 
     private static func defaultFrame() -> NSRect {
