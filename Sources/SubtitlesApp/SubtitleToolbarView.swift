@@ -244,6 +244,7 @@ private struct SubtitleToolbarContentView: View {
             .glassEffect(.regular.interactive(), in: Capsule())
         }
         .fixedSize(horizontal: true, vertical: true)
+        .environment(\.controlActiveState, .active)
     }
 
     private var statusView: some View {
