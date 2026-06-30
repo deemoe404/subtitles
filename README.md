@@ -47,7 +47,7 @@ mise exec -- swift run SubtitleHarness at Fixtures/sample.srt 3.1 --offset 0.3
 
 ## Hotkey Permission
 
-The app installs a global Space-key monitor so subtitles can start when Apple TV starts. macOS may require Accessibility permission for global key monitoring. If Space does not control subtitles, use the menu item `Request Hotkey Permission`, then enable the app in System Settings. The menu and hover controls remain usable without that permission.
+The app installs a global Space-key monitor and can read TV.app playback controls for manual calibration. macOS may require Accessibility permission for both behaviors. If Space does not control subtitles or `Calibrate TV` cannot read TV.app, use the menu item `Request Accessibility Permission`, then enable the app in System Settings. The menu and hover controls remain usable without that permission.
 
 ## TV Automation Permission
 

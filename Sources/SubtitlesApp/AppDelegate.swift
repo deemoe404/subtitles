@@ -104,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SubtitlePanelControlle
         syncStatusMenuItem?.isEnabled = false
         menu.addItem(syncStatusMenuItem!)
 
-        menu.addItem(NSMenuItem(title: "Request Hotkey Permission", action: #selector(requestHotkeyPermission), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Request Accessibility Permission", action: #selector(requestAccessibilityPermission), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Request TV Automation Permission", action: #selector(requestTVAutomationPermission), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Subtitles", action: #selector(quit), keyEquivalent: "q"))
@@ -203,7 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SubtitlePanelControlle
         refreshSubtitleText()
     }
 
-    @objc private func requestHotkeyPermission() {
+    @objc private func requestAccessibilityPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
     }

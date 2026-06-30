@@ -59,7 +59,8 @@ public struct AppleTVPlaybackSnapshot: Equatable, Sendable {
 
 public enum AppleTVPlaybackError: Error, Equatable, LocalizedError, Sendable {
     case notRunning
-    case permissionDenied
+    case accessibilityPermissionDenied
+    case automationPermissionDenied
     case missingPosition
     case scriptError(String)
 
@@ -67,7 +68,9 @@ public enum AppleTVPlaybackError: Error, Equatable, LocalizedError, Sendable {
         switch self {
         case .notRunning:
             return "TV.app is not running."
-        case .permissionDenied:
+        case .accessibilityPermissionDenied:
+            return "Accessibility permission for Subtitles is not granted."
+        case .automationPermissionDenied:
             return "Automation permission for TV.app is not granted."
         case .missingPosition:
             return "TV.app did not return a playback position."

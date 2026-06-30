@@ -115,7 +115,7 @@ public final class PlaybackSyncCoordinator {
         switch error {
         case .notRunning:
             return "Manual"
-        case .permissionDenied:
+        case .accessibilityPermissionDenied, .automationPermissionDenied:
             return "Permission Needed"
         case .missingPosition:
             return "Manual (TV position missing)"

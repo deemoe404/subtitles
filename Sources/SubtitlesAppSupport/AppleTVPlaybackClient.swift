@@ -109,7 +109,7 @@ public final class AppleTVPlaybackClient {
         let description = message ?? "Apple Events request failed."
 
         if number == -1743 || description.localizedCaseInsensitiveContains("not authorized") {
-            return .permissionDenied
+            return .automationPermissionDenied
         }
 
         return .scriptError(description)
@@ -117,7 +117,7 @@ public final class AppleTVPlaybackClient {
 
     private func snapshotFromAccessibility(revealControls: Bool) -> Result<AppleTVPlaybackSnapshot, AppleTVPlaybackError>? {
         guard AXIsProcessTrusted() else {
-            return .failure(.permissionDenied)
+            return .failure(.accessibilityPermissionDenied)
         }
         guard let app = runningApplicationProvider(bundleIdentifier).first else {
             return .failure(.notRunning)

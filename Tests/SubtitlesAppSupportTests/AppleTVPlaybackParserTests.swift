@@ -53,4 +53,15 @@ final class AppleTVPlaybackParserTests: XCTestCase {
         XCTAssertEqual(AppleTVPlaybackParser.stateFromPlaybackButtonDescription("Play"), .paused)
         XCTAssertNil(AppleTVPlaybackParser.stateFromPlaybackButtonDescription("AirPlay"))
     }
+
+    func testPermissionErrorsHaveSpecificDescriptions() {
+        XCTAssertEqual(
+            AppleTVPlaybackError.accessibilityPermissionDenied.localizedDescription,
+            "Accessibility permission for Subtitles is not granted."
+        )
+        XCTAssertEqual(
+            AppleTVPlaybackError.automationPermissionDenied.localizedDescription,
+            "Automation permission for TV.app is not granted."
+        )
+    }
 }
