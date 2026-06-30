@@ -1,5 +1,6 @@
 @preconcurrency import Cocoa
 import SubtitleCore
+import SubtitlesAppSupport
 
 protocol SubtitlePanelControllerDelegate: AnyObject {
     func subtitlePanelDidRequestPlayPause(_ panelController: SubtitlePanelController)
@@ -11,18 +12,33 @@ protocol SubtitlePanelControllerDelegate: AnyObject {
 }
 
 final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlayViewDelegate, SubtitleToolbarViewDelegate {
+    private enum InteractionState {
+        case idle
+        case hovering
+        case toolbarHover
+        case moving
+        case resizing
+
+        var isTransient: Bool {
+            switch self {
+            case .moving, .resizing:
+                return true
+            case .idle, .hovering, .toolbarHover:
+                return false
+            }
+        }
+    }
+
     weak var delegate: SubtitlePanelControllerDelegate?
 
     private let panel: SubtitlePanel
     private let overlayView = SubtitleOverlayView()
     private let toolbarPanel: SubtitlePanel
     private let toolbarView = SubtitleToolbarView()
-    private var chromeVisible = false
+    private var interactionState: InteractionState = .idle
+    private var containerChromeVisible = false
+    private var toolbarVisible = false
     private var pendingChromeHide: DispatchWorkItem?
-    private var pendingMoveRestore: DispatchWorkItem?
-    private var shouldRestoreToolbarAfterMove = false
-    private var isSubtitleWindowMoving = false
-    private var isSubtitleWindowResizing = false
 
     var isVisible: Bool {
         panel.isVisible
@@ -50,7 +66,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
-        panel.isMovableByWindowBackground = true
+        panel.isMovableByWindowBackground = false
         panel.level = .screenSaver
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.titleVisibility = .hidden
@@ -81,12 +97,12 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     }
 
     func hide() {
-        pendingMoveRestore?.cancel()
-        pendingMoveRestore = nil
-        shouldRestoreToolbarAfterMove = false
-        isSubtitleWindowMoving = false
-        isSubtitleWindowResizing = false
-        setChromeVisible(false, animated: false)
+        pendingChromeHide?.cancel()
+        pendingChromeHide = nil
+        interactionState = .idle
+        overlayView.setInteractionTrackingSuspended(false)
+        setToolbarVisible(false, animated: false)
+        setContainerChromeVisible(false, animated: false)
         overlayView.setCaptionReportingEnabled(false)
         panel.orderOut(nil)
     }
@@ -102,12 +118,12 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
             offset: offset,
             sourceLabel: sourceLabel
         )
-        positionChromeIfVisible()
+        positionToolbarIfVisible()
     }
 
     func setLoadedFileName(_ fileName: String) {
         toolbarView.setLoadedFileName(fileName)
-        positionChromeIfVisible()
+        positionToolbarIfVisible()
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -121,52 +137,45 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         guard let window = notification.object as? NSWindow, window === panel else {
             return
         }
-        guard !isSubtitleWindowResizing else {
-            return
-        }
-        handleSubtitlePanelMove()
+        positionToolbarIfVisible()
     }
 
     func windowDidResize(_ notification: Notification) {
         guard let window = notification.object as? NSWindow, window === panel else {
             return
         }
-        positionChromeIfVisible()
+        positionToolbarIfVisible()
     }
 
     func subtitleOverlayViewDidEnterInteractiveArea(_ view: SubtitleOverlayView) {
-        if isSubtitleWindowMoving {
-            shouldRestoreToolbarAfterMove = true
+        guard !interactionState.isTransient else {
             return
         }
-        setChromeVisible(true, animated: true)
+        interactionState = .hovering
+        showInteractiveChrome(includeToolbar: true, animated: true)
     }
 
     func subtitleOverlayViewDidExitInteractiveArea(_ view: SubtitleOverlayView) {
+        guard !interactionState.isTransient else {
+            return
+        }
         scheduleChromeHideIfNeeded()
     }
 
     func subtitleOverlayViewDidLayout(_ view: SubtitleOverlayView) {
-        positionChromeIfVisible()
+        positionToolbarIfVisible()
     }
 
-    func subtitleOverlayViewDidBeginContainerResize(_ view: SubtitleOverlayView) {
-        pendingMoveRestore?.cancel()
-        pendingMoveRestore = nil
-        isSubtitleWindowMoving = false
-        isSubtitleWindowResizing = true
-        shouldRestoreToolbarAfterMove = false
-        setChromeVisible(true, animated: false)
+    func subtitleOverlayView(
+        _ view: SubtitleOverlayView,
+        didRequestContainerResize edges: SubtitlePanelGeometry.ResizeEdges,
+        initialMouseLocation: NSPoint
+    ) {
+        performContainerResize(edges: edges, initialMouseLocation: initialMouseLocation)
     }
 
-    func subtitleOverlayView(_ view: SubtitleOverlayView, didResizeContainerTo frame: NSRect) {
-        panel.setFrame(frame, display: true)
-        positionChromeIfVisible()
-    }
-
-    func subtitleOverlayViewDidEndContainerResize(_ view: SubtitleOverlayView) {
-        isSubtitleWindowResizing = false
-        positionChromeIfVisible()
+    func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestContainerMoveWith event: NSEvent) {
+        performContainerMove(with: event)
     }
 
     func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestLoadURL url: URL) {
@@ -174,14 +183,17 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     }
 
     func subtitleToolbarViewDidEnter(_ view: SubtitleToolbarView) {
-        if isSubtitleWindowMoving {
-            shouldRestoreToolbarAfterMove = true
+        guard !interactionState.isTransient else {
             return
         }
-        setChromeVisible(true, animated: true)
+        interactionState = .toolbarHover
+        showInteractiveChrome(includeToolbar: true, animated: true)
     }
 
     func subtitleToolbarViewDidExit(_ view: SubtitleToolbarView) {
+        guard !interactionState.isTransient else {
+            return
+        }
         scheduleChromeHideIfNeeded()
     }
 
@@ -201,69 +213,104 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         delegate?.subtitlePanelDidRequestReset(self)
     }
 
-    private func handleSubtitlePanelMove() {
-        guard chromeVisible || shouldRestoreToolbarAfterMove else {
-            return
-        }
-
-        if !isSubtitleWindowMoving {
-            isSubtitleWindowMoving = true
-            shouldRestoreToolbarAfterMove = chromeVisible
-            if chromeVisible {
-                setChromeVisible(false, animated: true)
-            }
-        }
-
-        scheduleToolbarRestoreAfterMove()
-    }
-
-    private func scheduleToolbarRestoreAfterMove() {
-        pendingMoveRestore?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            self?.finishSubtitlePanelMove()
-        }
-        pendingMoveRestore = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: workItem)
-    }
-
-    private func finishSubtitlePanelMove() {
-        pendingMoveRestore = nil
-        isSubtitleWindowMoving = false
-
-        guard shouldRestoreToolbarAfterMove else {
-            return
-        }
-
-        shouldRestoreToolbarAfterMove = false
-        positionChrome()
-        setChromeVisible(true, animated: true)
-    }
-
-    private func setChromeVisible(_ visible: Bool, animated: Bool) {
+    private func performContainerMove(with event: NSEvent) {
         pendingChromeHide?.cancel()
         pendingChromeHide = nil
+        interactionState = .moving
+        overlayView.setInteractionTrackingSuspended(true)
+        setToolbarVisible(false, animated: false)
+        setContainerChromeVisible(false, animated: false)
 
-        guard visible != chromeVisible else {
+        panel.performDrag(with: event)
+
+        overlayView.setInteractionTrackingSuspended(false)
+        if overlayView.containsScreenPointInContainerArea(NSEvent.mouseLocation) {
+            interactionState = .hovering
+            showInteractiveChrome(includeToolbar: true, animated: true)
+        } else {
+            interactionState = .idle
+        }
+    }
+
+    private func performContainerResize(
+        edges: SubtitlePanelGeometry.ResizeEdges,
+        initialMouseLocation: NSPoint
+    ) {
+        pendingChromeHide?.cancel()
+        pendingChromeHide = nil
+        interactionState = .resizing
+        overlayView.setInteractionTrackingSuspended(true)
+        setContainerChromeVisible(true, animated: false)
+        setToolbarVisible(false, animated: false)
+
+        let initialFrame = panel.frame
+        let screenFrame = (panel.screen ?? NSScreen.main)?.visibleFrame ?? initialFrame
+
+        while let resizeEvent = panel.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
+            if resizeEvent.type == .leftMouseUp {
+                break
+            }
+
+            let nextFrame = SubtitlePanelGeometry.resizedFrame(
+                initialFrame: initialFrame,
+                initialMouseLocation: initialMouseLocation,
+                currentMouseLocation: NSEvent.mouseLocation,
+                edges: edges,
+                screenFrame: screenFrame
+            )
+            panel.setFrame(nextFrame, display: true)
+        }
+
+        overlayView.setInteractionTrackingSuspended(false)
+        interactionState = .hovering
+        showInteractiveChrome(includeToolbar: true, animated: true)
+        scheduleChromeHideIfNeeded()
+    }
+
+    private func showInteractiveChrome(includeToolbar: Bool, animated: Bool) {
+        pendingChromeHide?.cancel()
+        pendingChromeHide = nil
+        setContainerChromeVisible(true, animated: animated)
+        setToolbarVisible(includeToolbar, animated: animated)
+    }
+
+    private func hideInteractiveChrome(animated: Bool) {
+        pendingChromeHide?.cancel()
+        pendingChromeHide = nil
+        interactionState = .idle
+        setToolbarVisible(false, animated: animated)
+        setContainerChromeVisible(false, animated: animated)
+    }
+
+    private func setContainerChromeVisible(_ visible: Bool, animated: Bool) {
+        guard visible != containerChromeVisible else {
+            return
+        }
+        containerChromeVisible = visible
+        overlayView.setContainerChromeVisible(visible, animated: animated)
+    }
+
+    private func setToolbarVisible(_ visible: Bool, animated: Bool) {
+        guard visible != toolbarVisible else {
             if visible {
-                positionChrome()
+                positionToolbar()
             }
             return
         }
 
-        chromeVisible = visible
+        toolbarVisible = visible
 
         if visible {
-            positionChrome()
+            positionToolbar()
             toolbarPanel.alphaValue = animated ? 0 : 1
             toolbarPanel.orderFrontRegardless()
         }
-        overlayView.setContainerChromeVisible(visible, animated: animated)
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = animated ? 0.12 : 0
             toolbarPanel.animator().alphaValue = visible ? 1 : 0
         } completionHandler: { [weak self] in
-            guard let self, !self.chromeVisible else {
+            guard let self, !self.toolbarVisible else {
                 return
             }
             self.toolbarPanel.orderOut(nil)
@@ -281,10 +328,10 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
 
     private func hideChromeIfMouseOutside() {
         pendingChromeHide = nil
-        guard chromeVisible, !mouseIsInsideChromeRegion() else {
+        guard !interactionState.isTransient, containerChromeVisible, !mouseIsInsideChromeRegion() else {
             return
         }
-        setChromeVisible(false, animated: true)
+        hideInteractiveChrome(animated: true)
     }
 
     private func mouseIsInsideChromeRegion() -> Bool {
@@ -301,14 +348,10 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         return false
     }
 
-    private func positionChromeIfVisible() {
-        guard chromeVisible, !isSubtitleWindowMoving else {
+    private func positionToolbarIfVisible() {
+        guard toolbarVisible, !interactionState.isTransient else {
             return
         }
-        positionChrome()
-    }
-
-    private func positionChrome() {
         positionToolbar()
     }
 
@@ -319,15 +362,15 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         let maxWidth = max(1, screenFrame.width - 16)
         let width = min(ceil(fittingSize.width), maxWidth)
         let height = ceil(fittingSize.height)
-        let subtitleFrame = overlayView.subtitleBackdropFrameInScreen() ?? panel.frame
+        let containerFrame = overlayView.containerFrameInScreen() ?? panel.frame
 
         let minimumX = screenFrame.minX + 8
         let maximumX = screenFrame.maxX - width - 8
         let minimumY = screenFrame.minY + 8
         let maximumY = screenFrame.maxY - height - 8
 
-        let desiredX = subtitleFrame.midX - width / 2
-        let desiredY = subtitleFrame.maxY + 8
+        let desiredX = containerFrame.midX - width / 2
+        let desiredY = containerFrame.maxY + 8
         let x = min(max(desiredX, minimumX), max(minimumX, maximumX))
         let y = min(max(desiredY, minimumY), max(minimumY, maximumY))
 

@@ -6,9 +6,8 @@ protocol SubtitleOverlayViewDelegate: AnyObject {
     func subtitleOverlayViewDidEnterInteractiveArea(_ view: SubtitleOverlayView)
     func subtitleOverlayViewDidExitInteractiveArea(_ view: SubtitleOverlayView)
     func subtitleOverlayViewDidLayout(_ view: SubtitleOverlayView)
-    func subtitleOverlayViewDidBeginContainerResize(_ view: SubtitleOverlayView)
-    func subtitleOverlayView(_ view: SubtitleOverlayView, didResizeContainerTo frame: NSRect)
-    func subtitleOverlayViewDidEndContainerResize(_ view: SubtitleOverlayView)
+    func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestContainerResize edges: SubtitlePanelGeometry.ResizeEdges, initialMouseLocation: NSPoint)
+    func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestContainerMoveWith event: NSEvent)
     func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestLoadURL url: URL)
 }
 
@@ -18,44 +17,7 @@ final class SubtitleOverlayView: NSView {
         case container
     }
 
-    private struct ResizeEdges: OptionSet {
-        let rawValue: Int
-
-        static let left = ResizeEdges(rawValue: 1 << 0)
-        static let right = ResizeEdges(rawValue: 1 << 1)
-        static let top = ResizeEdges(rawValue: 1 << 2)
-        static let bottom = ResizeEdges(rawValue: 1 << 3)
-
-        var cursorPosition: NSCursor.FrameResizePosition {
-            switch (contains(.top), contains(.left), contains(.bottom), contains(.right)) {
-            case (true, true, _, _):
-                return .topLeft
-            case (true, _, _, true):
-                return .topRight
-            case (_, true, true, _):
-                return .bottomLeft
-            case (_, _, true, true):
-                return .bottomRight
-            case (true, _, _, _):
-                return .top
-            case (_, true, _, _):
-                return .left
-            case (_, _, true, _):
-                return .bottom
-            case (_, _, _, true):
-                return .right
-            default:
-                return .right
-            }
-        }
-    }
-
     private static let trackingRoleKey = "SubtitleOverlayTrackingRole"
-    private static let containerChromeInset: CGFloat = 12
-    private static let resizeEdgeThickness: CGFloat = 10
-    private static let minimumPanelWidth: CGFloat = 420
-    private static let maximumPanelWidth: CGFloat = 1400
-    private static let minimumPanelHeight: CGFloat = 96
     weak var delegate: SubtitleOverlayViewDelegate?
 
     private static let placeholderText = "Drop SRT or VTT subtitle here"
@@ -73,6 +35,7 @@ final class SubtitleOverlayView: NSView {
     private var captionAppearance = SystemCaptionAppearance.current()
     private var captionAppearanceMonitor: SystemCaptionAppearanceMonitor?
     private var isContainerChromeVisible = false
+    private var isInteractionTrackingSuspended = false
     private var isReportingCaptions = true
     private var lastReportedCaptionText: String?
     private var trackingAreaRefs: [NSTrackingArea] = []
@@ -91,24 +54,29 @@ final class SubtitleOverlayView: NSView {
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
+        guard !isInteractionTrackingSuspended else {
+            return
+        }
         rebuildTrackingAreas()
     }
 
     override func layout() {
         super.layout()
-        rebuildTrackingAreas()
-        window?.invalidateCursorRects(for: self)
+        if !isInteractionTrackingSuspended {
+            rebuildTrackingAreas()
+            window?.invalidateCursorRects(for: self)
+        }
         delegate?.subtitleOverlayViewDidLayout(self)
     }
 
     override func resetCursorRects() {
         super.resetCursorRects()
 
-        guard isContainerChromeVisible else {
+        guard isContainerChromeVisible, !isInteractionTrackingSuspended else {
             return
         }
 
-        for (rect, edges) in resizeCursorRects() {
+        for (rect, edges) in SubtitlePanelGeometry.resizeCursorRects(in: containerRect()) {
             addCursorRect(
                 rect,
                 cursor: NSCursor.frameResize(position: edges.cursorPosition, directions: .all)
@@ -148,7 +116,11 @@ final class SubtitleOverlayView: NSView {
         let point = convert(event.locationInWindow, from: nil)
 
         if let resizeEdges = resizeEdges(at: point) {
-            performContainerResize(with: event, edges: resizeEdges)
+            delegate?.subtitleOverlayView(
+                self,
+                didRequestContainerResize: resizeEdges,
+                initialMouseLocation: NSEvent.mouseLocation
+            )
             return
         }
 
@@ -157,7 +129,7 @@ final class SubtitleOverlayView: NSView {
             return
         }
 
-        window?.performDrag(with: event)
+        delegate?.subtitleOverlayView(self, didRequestContainerMoveWith: event)
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -177,14 +149,28 @@ final class SubtitleOverlayView: NSView {
         reportDisplayedCaptions(force: true)
     }
 
+    func setInteractionTrackingSuspended(_ suspended: Bool) {
+        guard suspended != isInteractionTrackingSuspended else {
+            return
+        }
+
+        isInteractionTrackingSuspended = suspended
+        if !suspended {
+            rebuildTrackingAreas()
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+
     func setContainerChromeVisible(_ visible: Bool, animated: Bool) {
         guard visible != isContainerChromeVisible else {
             return
         }
 
         isContainerChromeVisible = visible
-        rebuildTrackingAreas()
-        window?.invalidateCursorRects(for: self)
+        if !isInteractionTrackingSuspended {
+            rebuildTrackingAreas()
+            window?.invalidateCursorRects(for: self)
+        }
 
         NSAnimationContext.runAnimationGroup { context in
             context.duration = animated ? 0.12 : 0
@@ -220,10 +206,10 @@ final class SubtitleOverlayView: NSView {
         subtitleBackdropView.addSubview(subtitleLabel)
 
         NSLayoutConstraint.activate([
-            containerChromeView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.containerChromeInset),
-            containerChromeView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.containerChromeInset),
-            containerChromeView.topAnchor.constraint(equalTo: topAnchor, constant: Self.containerChromeInset),
-            containerChromeView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.containerChromeInset),
+            containerChromeView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: SubtitlePanelGeometry.chromeInset),
+            containerChromeView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -SubtitlePanelGeometry.chromeInset),
+            containerChromeView.topAnchor.constraint(equalTo: topAnchor, constant: SubtitlePanelGeometry.chromeInset),
+            containerChromeView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -SubtitlePanelGeometry.chromeInset),
 
             subtitleBackdropView.centerXAnchor.constraint(equalTo: centerXAnchor),
             subtitleBackdropView.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -6),
@@ -245,7 +231,7 @@ final class SubtitleOverlayView: NSView {
 
         addTrackingArea(for: subtitleBackdropView.frame, role: .subtitle)
         if isContainerChromeVisible {
-            addTrackingArea(for: containerChromeView.frame, role: .container)
+            addTrackingArea(for: containerRect(), role: .container)
         }
     }
 
@@ -292,7 +278,7 @@ final class SubtitleOverlayView: NSView {
             return true
         }
 
-        if isContainerChromeVisible, containerChromeView.frame.contains(point) {
+        if isContainerChromeVisible, containerRect().containsPointInclusively(point) {
             return true
         }
 
@@ -309,139 +295,35 @@ final class SubtitleOverlayView: NSView {
         return isInteractivePoint(point)
     }
 
-    func subtitleBackdropFrameInScreen() -> NSRect? {
+    func containsScreenPointInContainerArea(_ screenPoint: NSPoint) -> Bool {
+        guard let window else {
+            return false
+        }
+
+        let windowPoint = window.convertPoint(fromScreen: screenPoint)
+        let point = convert(windowPoint, from: nil)
+        return containerRect().containsPointInclusively(point)
+    }
+
+    func containerFrameInScreen() -> NSRect? {
         guard let window else {
             return nil
         }
 
-        let windowFrame = convert(subtitleBackdropView.frame, to: nil)
+        let windowFrame = convert(containerRect(), to: nil)
         return window.convertToScreen(windowFrame)
     }
 
-    private func resizeEdges(at point: NSPoint) -> ResizeEdges? {
-        guard isContainerChromeVisible, containerChromeView.frame.contains(point) else {
-            return nil
-        }
-
-        let frame = containerChromeView.frame
-        var edges: ResizeEdges = []
-
-        if point.x <= frame.minX + Self.resizeEdgeThickness {
-            edges.insert(.left)
-        } else if point.x >= frame.maxX - Self.resizeEdgeThickness {
-            edges.insert(.right)
-        }
-
-        if point.y <= frame.minY + Self.resizeEdgeThickness {
-            edges.insert(.bottom)
-        } else if point.y >= frame.maxY - Self.resizeEdgeThickness {
-            edges.insert(.top)
-        }
-
-        return edges.isEmpty ? nil : edges
+    private func resizeEdges(at point: NSPoint) -> SubtitlePanelGeometry.ResizeEdges? {
+        SubtitlePanelGeometry.resizeEdges(
+            at: point,
+            in: containerRect(),
+            isChromeVisible: isContainerChromeVisible
+        )
     }
 
-    private func resizeCursorRects() -> [(NSRect, ResizeEdges)] {
-        let frame = containerChromeView.frame
-        let edge = min(Self.resizeEdgeThickness, frame.width / 2, frame.height / 2)
-        guard edge > 0 else {
-            return []
-        }
-
-        return [
-            (NSRect(x: frame.minX, y: frame.maxY - edge, width: edge, height: edge), ResizeEdges([.top, .left])),
-            (NSRect(x: frame.maxX - edge, y: frame.maxY - edge, width: edge, height: edge), ResizeEdges([.top, .right])),
-            (NSRect(x: frame.minX, y: frame.minY, width: edge, height: edge), ResizeEdges([.bottom, .left])),
-            (NSRect(x: frame.maxX - edge, y: frame.minY, width: edge, height: edge), ResizeEdges([.bottom, .right])),
-            (NSRect(x: frame.minX + edge, y: frame.maxY - edge, width: frame.width - edge * 2, height: edge), .top),
-            (NSRect(x: frame.minX + edge, y: frame.minY, width: frame.width - edge * 2, height: edge), .bottom),
-            (NSRect(x: frame.minX, y: frame.minY + edge, width: edge, height: frame.height - edge * 2), .left),
-            (NSRect(x: frame.maxX - edge, y: frame.minY + edge, width: edge, height: frame.height - edge * 2), .right)
-        ].filter { rect, _ in
-            rect.width > 0 && rect.height > 0
-        }
-    }
-
-    private func performContainerResize(with event: NSEvent, edges: ResizeEdges) {
-        guard let window else {
-            return
-        }
-
-        delegate?.subtitleOverlayViewDidBeginContainerResize(self)
-
-        let initialMouseLocation = NSEvent.mouseLocation
-        let initialFrame = window.frame
-        let screenFrame = (window.screen ?? NSScreen.main)?.visibleFrame ?? initialFrame
-
-        defer {
-            delegate?.subtitleOverlayViewDidEndContainerResize(self)
-        }
-
-        while let resizeEvent = window.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
-            if resizeEvent.type == .leftMouseUp {
-                return
-            }
-
-            let mouseLocation = NSEvent.mouseLocation
-            let delta = NSPoint(
-                x: mouseLocation.x - initialMouseLocation.x,
-                y: mouseLocation.y - initialMouseLocation.y
-            )
-            let nextFrame = resizedFrame(
-                from: initialFrame,
-                delta: delta,
-                edges: edges,
-                screenFrame: screenFrame
-            )
-            delegate?.subtitleOverlayView(self, didResizeContainerTo: nextFrame)
-        }
-    }
-
-    private func resizedFrame(
-        from initialFrame: NSRect,
-        delta: NSPoint,
-        edges: ResizeEdges,
-        screenFrame: NSRect
-    ) -> NSRect {
-        let minimumWidth = min(Self.minimumPanelWidth, screenFrame.width)
-        let maximumWidth = min(Self.maximumPanelWidth, screenFrame.width)
-        let minimumHeight = min(Self.minimumPanelHeight, screenFrame.height)
-        let maximumHeight = screenFrame.height
-
-        var left = initialFrame.minX
-        var right = initialFrame.maxX
-        var bottom = initialFrame.minY
-        var top = initialFrame.maxY
-
-        if edges.contains(.left) {
-            let fixedRight = initialFrame.maxX
-            let minimumLeft = max(screenFrame.minX, fixedRight - maximumWidth)
-            let maximumLeft = fixedRight - minimumWidth
-            left = min(max(initialFrame.minX + delta.x, minimumLeft), maximumLeft)
-            right = fixedRight
-        } else if edges.contains(.right) {
-            let fixedLeft = initialFrame.minX
-            let minimumRight = fixedLeft + minimumWidth
-            let maximumRight = min(screenFrame.maxX, fixedLeft + maximumWidth)
-            left = fixedLeft
-            right = max(min(initialFrame.maxX + delta.x, maximumRight), minimumRight)
-        }
-
-        if edges.contains(.bottom) {
-            let fixedTop = initialFrame.maxY
-            let minimumBottom = max(screenFrame.minY, fixedTop - maximumHeight)
-            let maximumBottom = fixedTop - minimumHeight
-            bottom = min(max(initialFrame.minY + delta.y, minimumBottom), maximumBottom)
-            top = fixedTop
-        } else if edges.contains(.top) {
-            let fixedBottom = initialFrame.minY
-            let minimumTop = fixedBottom + minimumHeight
-            let maximumTop = min(screenFrame.maxY, fixedBottom + maximumHeight)
-            bottom = fixedBottom
-            top = max(min(initialFrame.maxY + delta.y, maximumTop), minimumTop)
-        }
-
-        return NSRect(x: left, y: bottom, width: right - left, height: top - bottom)
+    private func containerRect() -> NSRect {
+        SubtitlePanelGeometry.containerRect(in: bounds)
     }
 
     private func startCaptionAppearanceMonitoring() {
@@ -505,5 +387,36 @@ private struct SubtitleContainerChromeContentView: View {
                 )
         }
         .environment(\.controlActiveState, .active)
+    }
+}
+
+private extension SubtitlePanelGeometry.ResizeEdges {
+    var cursorPosition: NSCursor.FrameResizePosition {
+        switch (contains(.top), contains(.left), contains(.bottom), contains(.right)) {
+        case (true, true, _, _):
+            return .topLeft
+        case (true, _, _, true):
+            return .topRight
+        case (_, true, true, _):
+            return .bottomLeft
+        case (_, _, true, true):
+            return .bottomRight
+        case (true, _, _, _):
+            return .top
+        case (_, true, _, _):
+            return .left
+        case (_, _, true, _):
+            return .bottom
+        case (_, _, _, true):
+            return .right
+        default:
+            return .right
+        }
+    }
+}
+
+private extension CGRect {
+    func containsPointInclusively(_ point: CGPoint) -> Bool {
+        point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY
     }
 }
