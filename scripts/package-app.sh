@@ -47,6 +47,6 @@ cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-codesign --force --sign - --identifier local.Subtitles "$APP_DIR"
+codesign --force --sign "-" --identifier local.Subtitles "$APP_DIR"
 
 echo "$APP_DIR"
