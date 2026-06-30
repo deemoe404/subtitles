@@ -227,14 +227,37 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         delegate?.subtitlePanelDidRequestReset(self)
     }
 
-    private func performContainerMove(with event: NSEvent) {
+    private func performContainerMove(with _: NSEvent) {
         pendingChromeHide?.cancel()
         pendingChromeHide = nil
         interactionState = .moving
         overlayView.setInteractionTrackingSuspended(true)
 
-        panel.performDrag(with: event)
+        let initialFrame = panel.frame
+        let initialMouseLocation = NSEvent.mouseLocation
+
+        while let dragEvent = panel.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
+            if dragEvent.type == .leftMouseUp {
+                break
+            }
+
+            let currentMouseLocation = NSEvent.mouseLocation
+            let delta = NSPoint(
+                x: currentMouseLocation.x - initialMouseLocation.x,
+                y: currentMouseLocation.y - initialMouseLocation.y
+            )
+            let nextFrame = NSRect(
+                x: initialFrame.minX + delta.x,
+                y: initialFrame.minY + delta.y,
+                width: initialFrame.width,
+                height: initialFrame.height
+            )
+            panel.setFrame(nextFrame, display: true)
+            positionToolbarIfVisibleDuringTransientInteraction()
+        }
+
         applyPreferredPanelHeightAfterTransientInteraction()
+        positionToolbarIfVisibleDuringTransientInteraction()
 
         overlayView.setInteractionTrackingSuspended(false)
         if overlayView.containsScreenPointInContainerArea(NSEvent.mouseLocation) {
@@ -373,6 +396,13 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
 
     private func positionToolbarIfVisible() {
         guard toolbarVisible, !interactionState.isTransient else {
+            return
+        }
+        positionToolbar()
+    }
+
+    private func positionToolbarIfVisibleDuringTransientInteraction() {
+        guard toolbarVisible else {
             return
         }
         positionToolbar()
