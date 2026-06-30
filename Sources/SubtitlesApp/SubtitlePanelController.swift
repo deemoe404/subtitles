@@ -20,6 +20,9 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     private let toolbarView = SubtitleToolbarView()
     private var chromeVisible = false
     private var pendingChromeHide: DispatchWorkItem?
+    private var pendingMoveRestore: DispatchWorkItem?
+    private var shouldRestoreToolbarAfterMove = false
+    private var isSubtitleWindowMoving = false
 
     var isVisible: Bool {
         panel.isVisible
@@ -78,6 +81,10 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     }
 
     func hide() {
+        pendingMoveRestore?.cancel()
+        pendingMoveRestore = nil
+        shouldRestoreToolbarAfterMove = false
+        isSubtitleWindowMoving = false
         setChromeVisible(false, animated: false)
         overlayView.setCaptionReportingEnabled(false)
         panel.orderOut(nil)
@@ -113,7 +120,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         guard let window = notification.object as? NSWindow, window === panel else {
             return
         }
-        positionToolbarIfVisible()
+        handleSubtitlePanelMove()
     }
 
     func windowDidResize(_ notification: Notification) {
@@ -124,6 +131,10 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     }
 
     func subtitleOverlayViewDidEnterInteractiveArea(_ view: SubtitleOverlayView) {
+        if isSubtitleWindowMoving {
+            shouldRestoreToolbarAfterMove = true
+            return
+        }
         setChromeVisible(true, animated: true)
     }
 
@@ -140,6 +151,10 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     }
 
     func subtitleToolbarViewDidEnter(_ view: SubtitleToolbarView) {
+        if isSubtitleWindowMoving {
+            shouldRestoreToolbarAfterMove = true
+            return
+        }
         setChromeVisible(true, animated: true)
     }
 
@@ -188,6 +203,44 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         )
         panel.setFrame(newFrame, display: true, animate: true)
         positionToolbarIfVisible()
+    }
+
+    private func handleSubtitlePanelMove() {
+        guard chromeVisible || shouldRestoreToolbarAfterMove else {
+            return
+        }
+
+        if !isSubtitleWindowMoving {
+            isSubtitleWindowMoving = true
+            shouldRestoreToolbarAfterMove = chromeVisible
+            if chromeVisible {
+                setChromeVisible(false, animated: true)
+            }
+        }
+
+        scheduleToolbarRestoreAfterMove()
+    }
+
+    private func scheduleToolbarRestoreAfterMove() {
+        pendingMoveRestore?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.finishSubtitlePanelMove()
+        }
+        pendingMoveRestore = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: workItem)
+    }
+
+    private func finishSubtitlePanelMove() {
+        pendingMoveRestore = nil
+        isSubtitleWindowMoving = false
+
+        guard shouldRestoreToolbarAfterMove else {
+            return
+        }
+
+        shouldRestoreToolbarAfterMove = false
+        positionToolbar()
+        setChromeVisible(true, animated: true)
     }
 
     private func setChromeVisible(_ visible: Bool, animated: Bool) {
@@ -260,7 +313,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     }
 
     private func positionToolbarIfVisible() {
-        guard chromeVisible else {
+        guard chromeVisible, !isSubtitleWindowMoving else {
             return
         }
         positionToolbar()
