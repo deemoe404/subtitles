@@ -6,6 +6,7 @@ protocol SubtitleOverlayViewDelegate: AnyObject {
     func subtitleOverlayViewDidEnterInteractiveArea(_ view: SubtitleOverlayView)
     func subtitleOverlayViewDidExitInteractiveArea(_ view: SubtitleOverlayView)
     func subtitleOverlayViewDidLayout(_ view: SubtitleOverlayView)
+    func subtitleOverlayViewDidUpdatePreferredHeight(_ view: SubtitleOverlayView)
     func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestContainerResize edges: SubtitlePanelGeometry.ResizeEdges, initialMouseLocation: NSPoint)
     func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestContainerMoveWith event: NSEvent)
     func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestLoadURL url: URL)
@@ -375,6 +376,18 @@ final class SubtitleOverlayView: NSView {
         return window.convertToScreen(windowFrame)
     }
 
+    func preferredPanelHeight(forPanelWidth width: CGFloat) -> CGFloat {
+        let labelWidth = max(1, width - 48 - 32)
+        let attributedText = NSAttributedString(
+            string: displaySubtitleText(),
+            attributes: captionAppearance.subtitleAttributes()
+        )
+        let textHeight = measuredTextHeight(attributedText, constrainedTo: labelWidth)
+        let labelVerticalPadding: CGFloat = 16
+        let containerVerticalPadding: CGFloat = 56
+        return ceil(textHeight + labelVerticalPadding + containerVerticalPadding)
+    }
+
     private func resizeEdges(at point: NSPoint) -> SubtitlePanelGeometry.ResizeEdges? {
         if isContainerChromeVisible {
             return SubtitlePanelGeometry.resizeEdges(
@@ -405,12 +418,35 @@ final class SubtitleOverlayView: NSView {
     }
 
     private func updateSubtitleText() {
-        let displayText = subtitleText.isEmpty ? " " : subtitleText
+        let displayText = displaySubtitleText()
         subtitleLabel.attributedStringValue = NSAttributedString(
             string: displayText,
             attributes: captionAppearance.subtitleAttributes()
         )
         reportDisplayedCaptions()
+        delegate?.subtitleOverlayViewDidUpdatePreferredHeight(self)
+    }
+
+    private func displaySubtitleText() -> String {
+        subtitleText.isEmpty ? " " : subtitleText
+    }
+
+    private func measuredTextHeight(_ attributedText: NSAttributedString, constrainedTo width: CGFloat) -> CGFloat {
+        let textStorage = NSTextStorage(attributedString: attributedText)
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(
+            containerSize: NSSize(width: width, height: CGFloat.greatestFiniteMagnitude)
+        )
+        textContainer.lineFragmentPadding = 0
+        textContainer.maximumNumberOfLines = subtitleLabel.maximumNumberOfLines
+        textContainer.lineBreakMode = subtitleLabel.lineBreakMode
+
+        layoutManager.addTextContainer(textContainer)
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.ensureLayout(for: textContainer)
+
+        let usedRect = layoutManager.usedRect(for: textContainer)
+        return max(ceil(usedRect.height), 1)
     }
 
     private func reportDisplayedCaptions(force: Bool = false) {

@@ -52,30 +52,18 @@ public enum SubtitlePanelGeometry {
             edges.insert(.right)
         }
 
-        if point.y <= containerRect.minY + resizeEdgeThickness {
-            edges.insert(.bottom)
-        } else if point.y >= containerRect.maxY - resizeEdgeThickness {
-            edges.insert(.top)
-        }
-
         return edges.isEmpty ? nil : edges
     }
 
     public static func resizeCursorRects(in containerRect: CGRect) -> [(CGRect, ResizeEdges)] {
-        let edge = min(resizeEdgeThickness, containerRect.width / 2, containerRect.height / 2)
+        let edge = min(resizeEdgeThickness, containerRect.width / 2)
         guard edge > 0 else {
             return []
         }
 
         return [
-            (CGRect(x: containerRect.minX, y: containerRect.maxY - edge, width: edge, height: edge), ResizeEdges([.top, .left])),
-            (CGRect(x: containerRect.maxX - edge, y: containerRect.maxY - edge, width: edge, height: edge), ResizeEdges([.top, .right])),
-            (CGRect(x: containerRect.minX, y: containerRect.minY, width: edge, height: edge), ResizeEdges([.bottom, .left])),
-            (CGRect(x: containerRect.maxX - edge, y: containerRect.minY, width: edge, height: edge), ResizeEdges([.bottom, .right])),
-            (CGRect(x: containerRect.minX + edge, y: containerRect.maxY - edge, width: containerRect.width - edge * 2, height: edge), .top),
-            (CGRect(x: containerRect.minX + edge, y: containerRect.minY, width: containerRect.width - edge * 2, height: edge), .bottom),
-            (CGRect(x: containerRect.minX, y: containerRect.minY + edge, width: edge, height: containerRect.height - edge * 2), .left),
-            (CGRect(x: containerRect.maxX - edge, y: containerRect.minY + edge, width: edge, height: containerRect.height - edge * 2), .right)
+            (CGRect(x: containerRect.minX, y: containerRect.minY, width: edge, height: containerRect.height), .left),
+            (CGRect(x: containerRect.maxX - edge, y: containerRect.minY, width: edge, height: containerRect.height), .right)
         ].filter { rect, _ in
             rect.width > 0 && rect.height > 0
         }
@@ -94,13 +82,9 @@ public enum SubtitlePanelGeometry {
         )
         let minimumWidth = min(Self.minimumWidth, screenFrame.width)
         let maximumWidth = min(max(Self.maximumWidth, minimumWidth), screenFrame.width)
-        let minimumHeight = min(Self.minimumHeight, screenFrame.height)
-        let maximumHeight = screenFrame.height
 
         var left = initialFrame.minX
         var right = initialFrame.maxX
-        var bottom = initialFrame.minY
-        var top = initialFrame.maxY
 
         if edges.contains(.left) {
             let fixedRight = initialFrame.maxX
@@ -116,21 +100,17 @@ public enum SubtitlePanelGeometry {
             right = clampUpperResizeEdge(initialFrame.maxX + delta.x, minimumRight, maximumRight)
         }
 
-        if edges.contains(.bottom) {
-            let fixedTop = initialFrame.maxY
-            let minimumBottom = max(screenFrame.minY, fixedTop - maximumHeight)
-            let maximumBottom = fixedTop - minimumHeight
-            bottom = clampLowerResizeEdge(initialFrame.minY + delta.y, minimumBottom, maximumBottom)
-            top = fixedTop
-        } else if edges.contains(.top) {
-            let fixedBottom = initialFrame.minY
-            let minimumTop = fixedBottom + minimumHeight
-            let maximumTop = min(screenFrame.maxY, fixedBottom + maximumHeight)
-            bottom = fixedBottom
-            top = clampUpperResizeEdge(initialFrame.maxY + delta.y, minimumTop, maximumTop)
-        }
+        return CGRect(x: left, y: initialFrame.minY, width: right - left, height: initialFrame.height)
+    }
 
-        return CGRect(x: left, y: bottom, width: right - left, height: top - bottom)
+    public static func frameByApplyingPreferredHeight(
+        _ preferredHeight: CGFloat,
+        to frame: CGRect,
+        screenFrame: CGRect
+    ) -> CGRect {
+        let height = min(max(preferredHeight, min(Self.minimumHeight, screenFrame.height)), screenFrame.height)
+        let y = clamp(frame.midY - height / 2, screenFrame.minY, screenFrame.maxY - height)
+        return CGRect(x: frame.minX, y: y, width: frame.width, height: height)
     }
 
     public static func clampedFrame(_ frame: CGRect, to screenFrame: CGRect) -> CGRect {

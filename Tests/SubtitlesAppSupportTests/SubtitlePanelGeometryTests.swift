@@ -34,7 +34,7 @@ final class SubtitlePanelGeometryTests: XCTestCase {
         )
     }
 
-    func testEdgeHitTestFindsCornersAndIgnoresInterior() {
+    func testEdgeHitTestTreatsCornersAsHorizontalResizeOnly() {
         let container = CGRect(x: 12, y: 12, width: 876, height: 136)
 
         XCTAssertEqual(
@@ -43,7 +43,15 @@ final class SubtitlePanelGeometryTests: XCTestCase {
                 in: container,
                 isChromeVisible: true
             ),
-            [.top, .left]
+            .left
+        )
+        XCTAssertEqual(
+            SubtitlePanelGeometry.resizeEdges(
+                at: CGPoint(x: container.maxX - 2, y: container.minY + 2),
+                in: container,
+                isChromeVisible: true
+            ),
+            .right
         )
         XCTAssertNil(
             SubtitlePanelGeometry.resizeEdges(
@@ -63,7 +71,14 @@ final class SubtitlePanelGeometryTests: XCTestCase {
                 in: container,
                 isChromeVisible: true
             ),
-            [.top, .right]
+            .right
+        )
+        XCTAssertNil(
+            SubtitlePanelGeometry.resizeEdges(
+                at: CGPoint(x: container.midX, y: container.maxY),
+                in: container,
+                isChromeVisible: true
+            )
         )
     }
 
@@ -99,7 +114,7 @@ final class SubtitlePanelGeometryTests: XCTestCase {
         XCTAssertEqual(resized.width, 1_100)
     }
 
-    func testTopResizeClampsToScreenAndMinimumHeight() {
+    func testTopResizeRequestDoesNotChangeFrame() {
         let initial = CGRect(x: 200, y: 650, width: 800, height: 120)
 
         let resized = SubtitlePanelGeometry.resizedFrame(
@@ -110,12 +125,10 @@ final class SubtitlePanelGeometryTests: XCTestCase {
             screenFrame: screenFrame
         )
 
-        XCTAssertEqual(resized.minY, initial.minY)
-        XCTAssertEqual(resized.maxY, screenFrame.maxY)
-        XCTAssertEqual(resized.height, 150)
+        XCTAssertEqual(resized, initial)
     }
 
-    func testBottomResizeClampsToScreenAndMinimumHeight() {
+    func testBottomResizeRequestDoesNotChangeFrame() {
         let initial = CGRect(x: 200, y: 20, width: 800, height: 120)
 
         let resized = SubtitlePanelGeometry.resizedFrame(
@@ -126,12 +139,10 @@ final class SubtitlePanelGeometryTests: XCTestCase {
             screenFrame: screenFrame
         )
 
-        XCTAssertEqual(resized.maxY, initial.maxY)
-        XCTAssertEqual(resized.minY, screenFrame.minY)
-        XCTAssertEqual(resized.height, 140)
+        XCTAssertEqual(resized, initial)
     }
 
-    func testCornerResizeClampsToMinimumSizeWithoutMovingFixedEdges() {
+    func testCornerResizeRequestOnlyChangesWidth() {
         let initial = CGRect(x: 200, y: 100, width: 800, height: 150)
 
         let resized = SubtitlePanelGeometry.resizedFrame(
@@ -145,7 +156,48 @@ final class SubtitlePanelGeometryTests: XCTestCase {
         XCTAssertEqual(resized.minX, initial.minX)
         XCTAssertEqual(resized.minY, initial.minY)
         XCTAssertEqual(resized.width, SubtitlePanelGeometry.minimumWidth)
-        XCTAssertEqual(resized.height, SubtitlePanelGeometry.minimumHeight)
+        XCTAssertEqual(resized.height, initial.height)
+    }
+
+    func testPreferredHeightFrameKeepsVerticalCenterStable() {
+        let initial = CGRect(x: 200, y: 100, width: 800, height: 150)
+
+        let adjusted = SubtitlePanelGeometry.frameByApplyingPreferredHeight(
+            220,
+            to: initial,
+            screenFrame: screenFrame
+        )
+
+        XCTAssertEqual(adjusted.midY, initial.midY)
+        XCTAssertEqual(adjusted.height, 220)
+        XCTAssertEqual(adjusted.width, initial.width)
+    }
+
+    func testPreferredHeightFrameClampsToVisibleScreen() {
+        let initial = CGRect(x: 200, y: 760, width: 800, height: 80)
+
+        let adjusted = SubtitlePanelGeometry.frameByApplyingPreferredHeight(
+            180,
+            to: initial,
+            screenFrame: screenFrame
+        )
+
+        XCTAssertEqual(adjusted.maxY, screenFrame.maxY)
+        XCTAssertEqual(adjusted.height, 180)
+    }
+
+    func testPreferredHeightFrameDoesNotChangeHorizontalGeometry() {
+        let initial = CGRect(x: 900, y: 100, width: 500, height: 150)
+
+        let adjusted = SubtitlePanelGeometry.frameByApplyingPreferredHeight(
+            220,
+            to: initial,
+            screenFrame: screenFrame
+        )
+
+        XCTAssertEqual(adjusted.minX, initial.minX)
+        XCTAssertEqual(adjusted.width, initial.width)
+        XCTAssertEqual(adjusted.height, 220)
     }
 
     func testClampedFrameStaysInsideScreen() {

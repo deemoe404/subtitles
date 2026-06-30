@@ -94,6 +94,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         }
         overlayView.setCaptionReportingEnabled(true)
         panel.orderFrontRegardless()
+        applyPreferredPanelHeightIfNeeded(display: true)
     }
 
     func hide() {
@@ -166,6 +167,10 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         positionToolbarIfVisible()
     }
 
+    func subtitleOverlayViewDidUpdatePreferredHeight(_ view: SubtitleOverlayView) {
+        applyPreferredPanelHeightIfNeeded(display: true)
+    }
+
     func subtitleOverlayView(
         _ view: SubtitleOverlayView,
         didRequestContainerResize edges: SubtitlePanelGeometry.ResizeEdges,
@@ -222,6 +227,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         setContainerChromeVisible(false, animated: false)
 
         panel.performDrag(with: event)
+        applyPreferredPanelHeightAfterTransientInteraction()
 
         overlayView.setInteractionTrackingSuspended(false)
         if overlayView.containsScreenPointInContainerArea(NSEvent.mouseLocation) {
@@ -258,8 +264,16 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
                 edges: edges,
                 screenFrame: screenFrame
             )
-            panel.setFrame(nextFrame, display: true)
+            panel.setFrame(
+                frameByApplyingPreferredPanelHeight(to: nextFrame, screenFrame: screenFrame),
+                display: true
+            )
         }
+
+        panel.setFrame(
+            frameByApplyingPreferredPanelHeight(to: panel.frame, screenFrame: screenFrame),
+            display: true
+        )
 
         overlayView.setInteractionTrackingSuspended(false)
         interactionState = .hovering
@@ -380,6 +394,39 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         )
     }
 
+    private func applyPreferredPanelHeightIfNeeded(display: Bool) {
+        guard panel.isVisible, !interactionState.isTransient else {
+            return
+        }
+
+        let screenFrame = (panel.screen ?? NSScreen.main)?.visibleFrame ?? panel.frame
+        let nextFrame = frameByApplyingPreferredPanelHeight(to: panel.frame, screenFrame: screenFrame)
+        guard !panel.frame.isNearlyEqual(to: nextFrame) else {
+            return
+        }
+
+        panel.setFrame(nextFrame, display: display)
+        positionToolbarIfVisible()
+    }
+
+    private func applyPreferredPanelHeightAfterTransientInteraction() {
+        let screenFrame = (panel.screen ?? NSScreen.main)?.visibleFrame ?? panel.frame
+        let nextFrame = frameByApplyingPreferredPanelHeight(to: panel.frame, screenFrame: screenFrame)
+        guard !panel.frame.isNearlyEqual(to: nextFrame) else {
+            return
+        }
+
+        panel.setFrame(nextFrame, display: true)
+    }
+
+    private func frameByApplyingPreferredPanelHeight(to frame: NSRect, screenFrame: NSRect) -> NSRect {
+        SubtitlePanelGeometry.frameByApplyingPreferredHeight(
+            overlayView.preferredPanelHeight(forPanelWidth: frame.width),
+            to: frame,
+            screenFrame: screenFrame
+        )
+    }
+
     private static func defaultFrame() -> NSRect {
         let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)
         let width = min(max(screenFrame.width * 0.72, 640), 980)
@@ -400,5 +447,14 @@ final class SubtitlePanel: NSPanel {
 
     override var canBecomeMain: Bool {
         false
+    }
+}
+
+private extension CGRect {
+    func isNearlyEqual(to other: CGRect) -> Bool {
+        abs(minX - other.minX) < 0.5 &&
+            abs(minY - other.minY) < 0.5 &&
+            abs(width - other.width) < 0.5 &&
+            abs(height - other.height) < 0.5
     }
 }
