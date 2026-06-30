@@ -66,33 +66,12 @@ final class SubtitleOverlayView: NSView {
         super.layout()
         if !isInteractionTrackingSuspended {
             rebuildTrackingAreas()
-            window?.invalidateCursorRects(for: self)
         }
         delegate?.subtitleOverlayViewDidLayout(self)
     }
 
     override func resetCursorRects() {
         super.resetCursorRects()
-
-        guard !isInteractionTrackingSuspended else {
-            return
-        }
-
-        for (rect, edges) in SubtitlePanelGeometry.resizeCursorRects(in: containerRect()) {
-            addCursorRect(
-                rect,
-                cursor: NSCursor.frameResize(position: edges.cursorPosition, directions: .all)
-            )
-        }
-    }
-
-    override func cursorUpdate(with event: NSEvent) {
-        guard let edges = resizeEdges(from: event) else {
-            super.cursorUpdate(with: event)
-            return
-        }
-
-        setResizeCursor(for: edges)
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -113,8 +92,7 @@ final class SubtitleOverlayView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
-        if let edges = resizeEdges(from: event) {
-            setResizeCursor(for: edges)
+        if resizeEdges(from: event) != nil {
             return
         }
 
@@ -132,7 +110,6 @@ final class SubtitleOverlayView: NSView {
 
     override func mouseExited(with event: NSEvent) {
         if resizeEdges(from: event) != nil {
-            NSCursor.arrow.set()
             return
         }
 
@@ -187,7 +164,6 @@ final class SubtitleOverlayView: NSView {
         isInteractionTrackingSuspended = suspended
         if !suspended {
             rebuildTrackingAreas()
-            window?.invalidateCursorRects(for: self)
         }
     }
 
@@ -199,7 +175,6 @@ final class SubtitleOverlayView: NSView {
         isContainerChromeVisible = visible
         if !isInteractionTrackingSuspended {
             rebuildTrackingAreas()
-            window?.invalidateCursorRects(for: self)
         }
 
         NSAnimationContext.runAnimationGroup { context in
@@ -294,7 +269,7 @@ final class SubtitleOverlayView: NSView {
 
             let trackingArea = NSTrackingArea(
                 rect: rect,
-                options: [.mouseEnteredAndExited, .cursorUpdate, .activeAlways],
+                options: [.mouseEnteredAndExited, .activeAlways],
                 owner: self,
                 userInfo: [Self.resizeEdgesKey: edges.rawValue]
             )
@@ -321,10 +296,6 @@ final class SubtitleOverlayView: NSView {
         }
 
         return SubtitlePanelGeometry.ResizeEdges(rawValue: rawValue)
-    }
-
-    private func setResizeCursor(for edges: SubtitlePanelGeometry.ResizeEdges) {
-        NSCursor.frameResize(position: edges.cursorPosition, directions: .all).set()
     }
 
     private func currentMouseLocationInView() -> NSPoint? {
@@ -374,6 +345,16 @@ final class SubtitleOverlayView: NSView {
 
         let windowFrame = convert(containerRect(), to: nil)
         return window.convertToScreen(windowFrame)
+    }
+
+    func resizeEdges(atScreenPoint screenPoint: NSPoint) -> SubtitlePanelGeometry.ResizeEdges? {
+        guard let window else {
+            return nil
+        }
+
+        let windowPoint = window.convertPoint(fromScreen: screenPoint)
+        let point = convert(windowPoint, from: nil)
+        return resizeEdges(at: point)
     }
 
     func preferredPanelHeight(forPanelWidth width: CGFloat) -> CGFloat {
@@ -491,7 +472,7 @@ private struct SubtitleContainerChromeContentView: View {
     }
 }
 
-private extension SubtitlePanelGeometry.ResizeEdges {
+extension SubtitlePanelGeometry.ResizeEdges {
     var cursorPosition: NSCursor.FrameResizePosition {
         switch (contains(.top), contains(.left), contains(.bottom), contains(.right)) {
         case (true, true, _, _):

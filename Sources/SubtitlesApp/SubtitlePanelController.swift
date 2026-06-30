@@ -35,6 +35,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     private let overlayView = SubtitleOverlayView()
     private let toolbarPanel: SubtitlePanel
     private let toolbarView = SubtitleToolbarView()
+    private let resizeCursorCoordinator: SubtitleResizeCursorCoordinator
     private var interactionState: InteractionState = .idle
     private var containerChromeVisible = false
     private var toolbarVisible = false
@@ -58,6 +59,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
             backing: .buffered,
             defer: false
         )
+        resizeCursorCoordinator = SubtitleResizeCursorCoordinator()
         super.init()
 
         panel.delegate = self
@@ -85,7 +87,12 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
 
         overlayView.delegate = self
         toolbarView.delegate = self
+        resizeCursorCoordinator.attach(panel: panel, overlayView: overlayView)
         panel.addChildWindow(toolbarPanel, ordered: .above)
+    }
+
+    deinit {
+        resizeCursorCoordinator.stop()
     }
 
     func show() {
@@ -95,6 +102,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         overlayView.setCaptionReportingEnabled(true)
         panel.orderFrontRegardless()
         applyPreferredPanelHeightIfNeeded(display: true)
+        resizeCursorCoordinator.start()
     }
 
     func hide() {
@@ -104,6 +112,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         overlayView.setInteractionTrackingSuspended(false)
         setToolbarVisible(false, animated: false)
         setContainerChromeVisible(false, animated: false)
+        resizeCursorCoordinator.stop()
         overlayView.setCaptionReportingEnabled(false)
         panel.orderOut(nil)
     }
@@ -248,6 +257,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         overlayView.setInteractionTrackingSuspended(true)
         setContainerChromeVisible(true, animated: false)
         setToolbarVisible(false, animated: false)
+        resizeCursorCoordinator.setForcedResizeEdges(edges)
 
         let initialFrame = panel.frame
         let screenFrame = (panel.screen ?? NSScreen.main)?.visibleFrame ?? initialFrame
@@ -275,6 +285,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
             display: true
         )
 
+        resizeCursorCoordinator.setForcedResizeEdges(nil)
         overlayView.setInteractionTrackingSuspended(false)
         interactionState = .hovering
         showInteractiveChrome(includeToolbar: true, animated: true)
@@ -447,6 +458,98 @@ final class SubtitlePanel: NSPanel {
 
     override var canBecomeMain: Bool {
         false
+    }
+}
+
+private final class SubtitleResizeCursorCoordinator {
+    private weak var panel: NSPanel?
+    private weak var overlayView: SubtitleOverlayView?
+    private var localMonitor: Any?
+    private var globalMonitor: Any?
+    private var activeEdges: SubtitlePanelGeometry.ResizeEdges?
+    private var forcedEdges: SubtitlePanelGeometry.ResizeEdges?
+    private var didPushCursor = false
+
+    func attach(panel: NSPanel, overlayView: SubtitleOverlayView) {
+        self.panel = panel
+        self.overlayView = overlayView
+    }
+
+    func start() {
+        guard localMonitor == nil, globalMonitor == nil else {
+            return
+        }
+
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
+            self?.updateCursor()
+            return event
+        }
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.updateCursor()
+            }
+        }
+
+        updateCursor()
+    }
+
+    func stop() {
+        if let localMonitor {
+            NSEvent.removeMonitor(localMonitor)
+        }
+        if let globalMonitor {
+            NSEvent.removeMonitor(globalMonitor)
+        }
+        localMonitor = nil
+        globalMonitor = nil
+        forcedEdges = nil
+        clearResizeCursorIfNeeded()
+    }
+
+    func setForcedResizeEdges(_ edges: SubtitlePanelGeometry.ResizeEdges?) {
+        forcedEdges = edges
+        updateCursor()
+    }
+
+    private func updateCursor() {
+        guard let panel, panel.isVisible else {
+            clearResizeCursorIfNeeded()
+            return
+        }
+
+        if let forcedEdges {
+            setResizeCursor(for: forcedEdges)
+            return
+        }
+
+        guard let edges = overlayView?.resizeEdges(atScreenPoint: NSEvent.mouseLocation) else {
+            clearResizeCursorIfNeeded()
+            return
+        }
+
+        setResizeCursor(for: edges)
+    }
+
+    private func setResizeCursor(for edges: SubtitlePanelGeometry.ResizeEdges) {
+        if didPushCursor, activeEdges == edges {
+            return
+        }
+
+        clearResizeCursorIfNeeded()
+        let cursor = NSCursor.frameResize(position: edges.cursorPosition, directions: .all)
+        cursor.push()
+        didPushCursor = true
+        activeEdges = edges
+    }
+
+    private func clearResizeCursorIfNeeded() {
+        guard didPushCursor else {
+            return
+        }
+
+        NSCursor.pop()
+        didPushCursor = false
+        activeEdges = nil
     }
 }
 
