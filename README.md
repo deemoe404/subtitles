@@ -43,6 +43,7 @@ mise exec -- swift run SubtitleHarness at Fixtures/sample.srt 3.1 --offset 0.3
 - The close control hides the subtitle window; reopen it from the menu bar.
 - `Sync with Apple TV` is enabled by default. When TV.app is running and returns a playback position, subtitles follow TV.app play/pause/seek state.
 - If TV.app is stopped, not running, missing permissions, or missing position data, the app falls back to the manual Space-key clock.
+- Use the hover control `Calibrate TV` to manually read the current Apple TV playback position when TV.app hides its playback controls. Automatic polling will not wake those controls.
 
 ## Hotkey Permission
 

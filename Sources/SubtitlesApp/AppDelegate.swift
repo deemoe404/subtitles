@@ -372,6 +372,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SubtitlePanelControlle
         adjustOffset(by: delta)
     }
 
+    func subtitlePanelDidRequestAppleTVCalibration(_ panelController: SubtitlePanelController) {
+        switch appleTVClient.calibratedSnapshot() {
+        case let .success(snapshot):
+            syncCoordinator.mode = .appleTV
+            syncCoordinator.calibrate(with: snapshot)
+            cachedAppleTVSnapshot = .success(snapshot)
+            lastAppleTVPollUptime = ProcessInfo.processInfo.systemUptime
+            refreshSubtitleText()
+
+        case let .failure(error):
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "Could not calibrate Apple TV"
+            alert.informativeText = error.localizedDescription
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
+
     func subtitlePanel(_ panelController: SubtitlePanelController, didRequestLoadURL url: URL) {
         loadSubtitle(from: url)
     }

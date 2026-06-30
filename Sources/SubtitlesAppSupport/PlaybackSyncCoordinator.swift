@@ -12,6 +12,7 @@ public final class PlaybackSyncCoordinator {
     private let manualTimeProvider: ManualTimeProvider
     private let manualIsPlayingProvider: ManualIsPlayingProvider
     private let dateProvider: DateProvider
+    private var calibratedSnapshot: AppleTVPlaybackSnapshot?
 
     public init(
         mode: PlaybackSyncMode = .appleTV,
@@ -36,9 +37,14 @@ public final class PlaybackSyncCoordinator {
         }
     }
 
+    public func calibrate(with snapshot: AppleTVPlaybackSnapshot) {
+        calibratedSnapshot = snapshot
+    }
+
     private func appleTVRenderState(offset: TimeInterval) -> PlaybackRenderState {
         switch appleTVSnapshotProvider() {
         case let .success(snapshot):
+            calibratedSnapshot = snapshot
             guard let position = currentPosition(from: snapshot) else {
                 return manualRenderState(offset: offset, sourceLabel: manualFallbackLabel(for: snapshot.state))
             }
@@ -51,6 +57,16 @@ public final class PlaybackSyncCoordinator {
             )
 
         case let .failure(error):
+            if let calibratedSnapshot,
+               let position = currentPosition(from: calibratedSnapshot) {
+                return PlaybackRenderState(
+                    mediaTime: max(0, position),
+                    effectiveTime: max(0, position + offset),
+                    isPlaying: calibratedSnapshot.state.isActivelyAdvancing,
+                    sourceLabel: "TV calibrated",
+                    mode: .appleTV
+                )
+            }
             return manualRenderState(offset: offset, sourceLabel: manualFallbackLabel(for: error))
         }
     }

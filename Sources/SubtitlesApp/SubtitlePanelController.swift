@@ -5,6 +5,7 @@ protocol SubtitlePanelControllerDelegate: AnyObject {
     func subtitlePanelDidRequestPlayPause(_ panelController: SubtitlePanelController)
     func subtitlePanelDidRequestReset(_ panelController: SubtitlePanelController)
     func subtitlePanel(_ panelController: SubtitlePanelController, didAdjustOffsetBy delta: TimeInterval)
+    func subtitlePanelDidRequestAppleTVCalibration(_ panelController: SubtitlePanelController)
     func subtitlePanel(_ panelController: SubtitlePanelController, didRequestLoadURL url: URL)
     func subtitlePanelDidRequestClose(_ panelController: SubtitlePanelController)
 }
@@ -81,6 +82,10 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
 
     func subtitleOverlayView(_ view: SubtitleOverlayView, didAdjustOffsetBy delta: TimeInterval) {
         delegate?.subtitlePanel(self, didAdjustOffsetBy: delta)
+    }
+
+    func subtitleOverlayViewDidRequestAppleTVCalibration(_ view: SubtitleOverlayView) {
+        delegate?.subtitlePanelDidRequestAppleTVCalibration(self)
     }
 
     func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestLoadURL url: URL) {

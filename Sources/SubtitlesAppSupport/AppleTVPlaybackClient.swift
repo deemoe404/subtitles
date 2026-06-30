@@ -32,7 +32,7 @@ public final class AppleTVPlaybackClient {
             return .failure(.notRunning)
         }
 
-        if let accessibilitySnapshot = snapshotFromAccessibility() {
+        if let accessibilitySnapshot = snapshotFromAccessibility(revealControls: false) {
             return accessibilitySnapshot
         }
 
@@ -46,6 +46,18 @@ public final class AppleTVPlaybackClient {
                     return .failure(.scriptError(error.localizedDescription))
                 }
             }
+    }
+
+    public func calibratedSnapshot() -> Result<AppleTVPlaybackSnapshot, AppleTVPlaybackError> {
+        guard !runningApplicationProvider(bundleIdentifier).isEmpty else {
+            return .failure(.notRunning)
+        }
+
+        if let accessibilitySnapshot = snapshotFromAccessibility(revealControls: true) {
+            return accessibilitySnapshot
+        }
+
+        return .failure(.missingPosition)
     }
 
     public func requestAutomationPermission() -> Result<Void, AppleTVPlaybackError> {
@@ -103,7 +115,7 @@ public final class AppleTVPlaybackClient {
         return .scriptError(description)
     }
 
-    private func snapshotFromAccessibility() -> Result<AppleTVPlaybackSnapshot, AppleTVPlaybackError>? {
+    private func snapshotFromAccessibility(revealControls: Bool) -> Result<AppleTVPlaybackSnapshot, AppleTVPlaybackError>? {
         guard AXIsProcessTrusted() else {
             return .failure(.permissionDenied)
         }
@@ -120,15 +132,18 @@ public final class AppleTVPlaybackClient {
             return .success(snapshot)
         }
 
-        if let videoButton = firstElement(in: root, matching: { element in
+        guard revealControls,
+              let videoButton = firstElement(in: root, matching: { element in
             stringAttribute(kAXRoleAttribute, from: element) == "AXButton"
                 && stringAttribute(kAXDescriptionAttribute, from: element) == "Video"
-        }) {
-            AXUIElementPerformAction(videoButton, kAXPressAction as CFString)
-            Thread.sleep(forTimeInterval: 0.12)
-            if let snapshot = accessibilitySnapshot(in: root) {
-                return .success(snapshot)
-            }
+        }) else {
+            return nil
+        }
+
+        AXUIElementPerformAction(videoButton, kAXPressAction as CFString)
+        Thread.sleep(forTimeInterval: 0.12)
+        if let snapshot = accessibilitySnapshot(in: root) {
+            return .success(snapshot)
         }
 
         return nil
