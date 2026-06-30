@@ -106,9 +106,7 @@ public final class AppleTVPlaybackClient {
 
         return AppleTVPlaybackSnapshot(
             state: state ?? .unknown,
-            position: position,
-            duration: nil,
-            observedAt: Date()
+            position: position
         )
     }
 

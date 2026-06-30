@@ -17,20 +17,14 @@ public enum AppleTVPlaybackState: String, Equatable, Sendable {
 
 public struct AppleTVPlaybackSnapshot: Equatable, Sendable {
     public let state: AppleTVPlaybackState
-    public let position: TimeInterval?
-    public let duration: TimeInterval?
-    public let observedAt: Date
+    public let position: TimeInterval
 
     public init(
         state: AppleTVPlaybackState,
-        position: TimeInterval?,
-        duration: TimeInterval?,
-        observedAt: Date
+        position: TimeInterval
     ) {
         self.state = state
         self.position = position
-        self.duration = duration
-        self.observedAt = observedAt
     }
 }
 

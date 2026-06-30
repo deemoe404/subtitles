@@ -193,6 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SubtitlePanelControlle
             document = parsed
             timeline = SubtitleTimeline(document: parsed)
             clock.reset()
+            syncCoordinator.markManual()
             panelController.show()
             panelController.setLoadedFileName(url.lastPathComponent)
             updateMenuState()
@@ -253,6 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SubtitlePanelControlle
     private func resetPlayback() {
         clock.reset()
         clock.pause()
+        syncCoordinator.markManual()
         updateMenuState()
         refreshSubtitleText()
     }
@@ -316,7 +318,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SubtitlePanelControlle
     func subtitlePanelDidRequestAppleTVCalibration(_ panelController: SubtitlePanelController) {
         switch appleTVClient.calibratedSnapshot() {
         case let .success(snapshot):
-            syncCoordinator.calibrate(with: snapshot)
+            clock.pause()
+            clock.seek(to: snapshot.position)
+            if snapshot.state.isActivelyAdvancing {
+                clock.play()
+            }
+            syncCoordinator.markAppleTVCalibrated()
             refreshSubtitleText()
 
         case let .failure(error):
