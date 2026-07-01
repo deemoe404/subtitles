@@ -972,7 +972,6 @@ private final class SubtitleResizeCursorCoordinator {
     private weak var panel: NSPanel?
     private weak var overlayView: SubtitleOverlayView?
     private var localMonitor: Any?
-    private var globalMonitor: Any?
     private var activeEdges: SubtitlePanelGeometry.ResizeEdges?
     private var forcedEdges: SubtitlePanelGeometry.ResizeEdges?
     private var didPushCursor = false
@@ -983,18 +982,13 @@ private final class SubtitleResizeCursorCoordinator {
     }
 
     func start() {
-        guard localMonitor == nil, globalMonitor == nil else {
+        guard localMonitor == nil else {
             return
         }
 
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
             self?.updateCursor()
             return event
-        }
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.updateCursor()
-            }
         }
 
         updateCursor()
@@ -1004,11 +998,7 @@ private final class SubtitleResizeCursorCoordinator {
         if let localMonitor {
             NSEvent.removeMonitor(localMonitor)
         }
-        if let globalMonitor {
-            NSEvent.removeMonitor(globalMonitor)
-        }
         localMonitor = nil
-        globalMonitor = nil
         forcedEdges = nil
         clearResizeCursorIfNeeded()
     }
