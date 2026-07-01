@@ -36,16 +36,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         let showHideTitle: String
         let loadedFileTitle: String
         let accessibilityPermission: AccessibilityPermissionMenuState
+        let canCheckForUpdates: Bool
     }
 
     private let clock = SubtitlePlayerClock()
     private let panelController = SubtitlePanelController()
     private let appleTVClient = AppleTVPlaybackClient()
+    private let updateController = AppUpdateController()
 
     private var statusItem: NSStatusItem?
     private var showHideMenuItem: NSMenuItem?
     private var loadedFileMenuItem: NSMenuItem?
     private var accessibilityPermissionMenuItem: NSMenuItem?
+    private var checkForUpdatesMenuItem: NSMenuItem?
 
     private var document: SubtitleDocument?
     private var timeline: SubtitleTimeline?
@@ -64,6 +67,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
     )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        updateController.onCanCheckForUpdatesChanged = { [weak self] in
+            self?.updateMenuState()
+        }
         panelController.delegate = self
         setupStatusItem()
         panelController.show()
@@ -77,8 +83,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
 
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.title = "Sub"
-        item.button?.toolTip = "Subtitles"
+        item.button?.title = AppMetadata.statusItemTitle
+        item.button?.toolTip = AppMetadata.displayName
 
         let menu = NSMenu()
         menu.delegate = self
@@ -104,7 +110,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         menu.addItem(accessibilityPermission)
         menu.addItem(NSMenuItem(title: "Open Caption Settings...", action: #selector(openCaptionSettingsFromMenu), keyEquivalent: ""))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit Subtitles", action: #selector(quit), keyEquivalent: ""))
+
+        let checkForUpdates = NSMenuItem(
+            title: "Check for Updates...",
+            action: #selector(checkForUpdatesFromMenu),
+            keyEquivalent: ""
+        )
+        checkForUpdatesMenuItem = checkForUpdates
+        menu.addItem(checkForUpdates)
+
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Quit \(AppMetadata.displayName)", action: #selector(quit), keyEquivalent: ""))
 
         item.menu = menu
         statusItem = item
@@ -260,6 +276,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         openCaptionSettings()
     }
 
+    @objc private func checkForUpdatesFromMenu() {
+        updateController.checkForUpdates()
+    }
+
     @objc private func quit() {
         NSApplication.shared.terminate(nil)
     }
@@ -376,7 +396,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         let state = MenuDisplayState(
             showHideTitle: panelController.isVisible ? "Hide Subtitle Window" : "Show Subtitle Window",
             loadedFileTitle: document?.sourceURL?.lastPathComponent ?? "No Subtitle Loaded",
-            accessibilityPermission: accessibilityPermissionMenuState()
+            accessibilityPermission: accessibilityPermissionMenuState(),
+            canCheckForUpdates: !updateController.isConfigured || updateController.canCheckForUpdates
         )
         guard state != lastMenuDisplayState else {
             return
@@ -386,6 +407,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         loadedFileMenuItem?.title = state.loadedFileTitle
         accessibilityPermissionMenuItem?.title = state.accessibilityPermission.title
         accessibilityPermissionMenuItem?.isEnabled = state.accessibilityPermission.isEnabled
+        checkForUpdatesMenuItem?.isEnabled = state.canCheckForUpdates
     }
 
     private func accessibilityPermissionMenuState() -> AccessibilityPermissionMenuState {

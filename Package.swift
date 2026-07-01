@@ -26,6 +26,10 @@ let package = Package(
         )
     ],
     targets: [
+        .binaryTarget(
+            name: "Sparkle",
+            path: "Vendor/Sparkle/Sparkle.xcframework"
+        ),
         .target(
             name: "SubtitleCore",
             swiftSettings: swiftSettings
@@ -42,9 +46,16 @@ let package = Package(
             name: "SubtitlesApp",
             dependencies: [
                 "SubtitleCore",
-                "SubtitlesAppSupport"
+                "SubtitlesAppSupport",
+                "Sparkle"
             ],
-            swiftSettings: swiftSettings
+            swiftSettings: swiftSettings,
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", "@executable_path/../Frameworks"
+                ])
+            ]
         ),
         .executableTarget(
             name: "SubtitleHarness",

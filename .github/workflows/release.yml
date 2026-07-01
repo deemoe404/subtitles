@@ -23,6 +23,8 @@ jobs:
       RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag_name }}
       SUBTITLES_CODESIGN_IDENTITY: "-"
       SUBTITLES_BUNDLE_IDENTIFIER: local.Subtitles
+      SUBTITLES_SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SUBTITLES_SPARKLE_PUBLIC_ED_KEY }}
+      SUBTITLES_SPARKLE_PRIVATE_KEY: ${{ secrets.SUBTITLES_SPARKLE_PRIVATE_KEY }}
 
     steps:
       - name: Checkout release tag
@@ -38,6 +40,7 @@ jobs:
           xcrun swift --version
 
       - name: Prepare release metadata
+        id: metadata
         run: |
           version="${RELEASE_TAG#v}"
           version="${version%%-*}"
@@ -50,6 +53,19 @@ jobs:
 
           echo "SUBTITLES_BUNDLE_SHORT_VERSION=$version" >>"$GITHUB_ENV"
           echo "SUBTITLES_BUNDLE_VERSION=${GITHUB_RUN_NUMBER}" >>"$GITHUB_ENV"
+
+          if [[ -z "${SUBTITLES_SPARKLE_PUBLIC_ED_KEY:-}" ]]; then
+            echo "::error::Release builds require SUBTITLES_SPARKLE_PUBLIC_ED_KEY secret"
+            exit 1
+          fi
+
+          if [[ -z "${SUBTITLES_SPARKLE_PRIVATE_KEY:-}" ]]; then
+            echo "::error::Release builds require SUBTITLES_SPARKLE_PRIVATE_KEY secret"
+            exit 1
+          fi
+
+          echo "SUBTITLES_SPARKLE_FEED_URL=https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/appcast.xml" >>"$GITHUB_ENV"
+          echo "sparkle_enabled=true" >>"$GITHUB_OUTPUT"
 
       - name: Run checks
         run: scripts/check.sh
@@ -68,11 +84,37 @@ jobs:
           echo "asset_name=$asset_name" >>"$GITHUB_OUTPUT"
           echo "asset_path=$asset_path" >>"$GITHUB_OUTPUT"
 
+      - name: Prepare Sparkle appcast
+        id: sparkle
+        if: ${{ steps.metadata.outputs.sparkle_enabled == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET_PATH: ${{ steps.package.outputs.asset_path }}
+        run: |
+          notes_path="dist/release-notes.md"
+          gh release view "$RELEASE_TAG" --json body --jq '.body // ""' >"$notes_path"
+
+          appcast_path="$(
+            SUBTITLES_SPARKLE_FULL_RELEASE_NOTES_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}" \
+              scripts/create-appcast.sh "$ASSET_PATH" "$notes_path" | tail -n 1
+          )"
+
+          echo "appcast_name=appcast.xml" >>"$GITHUB_OUTPUT"
+          echo "appcast_path=$appcast_path" >>"$GITHUB_OUTPUT"
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.package.outputs.asset_name }}
           path: ${{ steps.package.outputs.asset_path }}
+          if-no-files-found: error
+
+      - name: Upload Sparkle appcast workflow artifact
+        if: ${{ steps.metadata.outputs.sparkle_enabled == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: appcast.xml
+          path: ${{ steps.sparkle.outputs.appcast_path }}
           if-no-files-found: error
 
       - name: Upload release asset
@@ -87,3 +129,17 @@ jobs:
             exit 1
           fi
           gh release upload "$RELEASE_TAG" "$ASSET_PATH"
+
+      - name: Upload Sparkle appcast release asset
+        if: ${{ steps.metadata.outputs.sparkle_enabled == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPCAST_PATH: ${{ steps.sparkle.outputs.appcast_path }}
+          APPCAST_NAME: ${{ steps.sparkle.outputs.appcast_name }}
+        run: |
+          gh release view "$RELEASE_TAG" >/dev/null
+          if gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fx "$APPCAST_NAME"; then
+            echo "::error::Release asset already exists: $APPCAST_NAME"
+            exit 1
+          fi
+          gh release upload "$RELEASE_TAG" "$APPCAST_PATH"

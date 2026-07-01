@@ -30,6 +30,14 @@ mise exec -- scripts/package-app.sh
 
 The packaged app is written to `build/Subtitles.app`.
 
+`scripts/check.sh` and `scripts/package-app.sh` prepare Sparkle locally before
+running SwiftPM. If you run raw `swift build` or `swift run` commands in a fresh
+checkout, run this first:
+
+```sh
+mise exec -- scripts/prepare-sparkle.sh
+```
+
 ## Signing
 
 `scripts/package-app.sh` defaults to ad-hoc signing, so a public checkout can
@@ -46,15 +54,58 @@ SUBTITLES_BUNDLE_IDENTIFIER="com.example.Subtitles"
 The same values can also be supplied as environment variables for one-off
 builds.
 
+## Updates
+
+The app uses [Sparkle](https://sparkle-project.org/) for manual and automatic
+update checks. Sparkle is downloaded into the ignored `Vendor/Sparkle/`
+directory by `scripts/prepare-sparkle.sh`; the binary framework is not committed
+to git.
+
+Development builds without `SUBTITLES_SPARKLE_FEED_URL` and
+`SUBTITLES_SPARKLE_PUBLIC_ED_KEY` still build and run, but the `Check for
+Updates...` menu item reports that updates are not configured for that build.
+
+Generate or inspect the Sparkle EdDSA key with:
+
+```sh
+mise exec -- scripts/generate-sparkle-keys.sh
+mise exec -- scripts/generate-sparkle-keys.sh -p
+mise exec -- scripts/generate-sparkle-keys.sh -x /tmp/subtitles-sparkle-private-key
+```
+
+For GitHub Release appcasts, set these repository secrets:
+
+```sh
+SUBTITLES_SPARKLE_PUBLIC_ED_KEY
+SUBTITLES_SPARKLE_PRIVATE_KEY
+```
+
+`SUBTITLES_SPARKLE_PUBLIC_ED_KEY` is the public key printed by
+`generate-sparkle-keys.sh -p`. `SUBTITLES_SPARKLE_PRIVATE_KEY` is the exact
+contents of the private key file exported with `-x`; do not commit that file.
+
+Release builds require both secrets. The release workflow embeds the public key
+and a stable feed URL in the app, generates `appcast.xml`, and uploads it as a
+release asset. The app feed URL is:
+
+```text
+https://github.com/deemoe404/subtitles/releases/latest/download/appcast.xml
+```
+
+If the app is renamed later, keep `SUBTITLES_BUNDLE_IDENTIFIER`, the Sparkle
+public/private key pair, and the feed URL stable. `SUBTITLES_APP_NAME`,
+`SUBTITLES_APP_BUNDLE_NAME`, `SUBTITLES_APP_EXECUTABLE_NAME`, and
+`SUBTITLES_STATUS_ITEM_TITLE` can change for display and packaging purposes.
+
 ## Release Automation
 
 GitHub Actions runs `scripts/check.sh` on pushes and pull requests to `main`.
 
 When a GitHub Release is published, the release workflow builds the tagged
 checkout on a macOS runner, packages `build/Subtitles.app`, zips the app bundle,
-and uploads the zip back to the Release assets. The release asset is ad-hoc
-signed by default; Developer ID signing and notarization are separate
-distribution steps.
+generates the Sparkle appcast, and uploads both files back to the Release
+assets. The release asset is ad-hoc signed by default; Developer ID signing and
+notarization are separate distribution steps.
 
 Release tags must use `vX.Y.Z` or `X.Y.Z` format. That tag is written into the
 app bundle short version, and the GitHub Actions run number is written into the
@@ -94,7 +145,9 @@ The app can read TV.app playback controls for Sync calibration. macOS may requir
 
 ## Scope
 
-The MVP supports SRT and WebVTT only. ASS/SSA styling, OCR, sandboxing, signing, and auto-update are intentionally out of scope for this scaffold.
+The MVP supports SRT and WebVTT only. ASS/SSA styling, OCR, sandboxing, and
+notarized Developer ID distribution are intentionally out of scope for this
+scaffold.
 
 ## Known Limitations
 
