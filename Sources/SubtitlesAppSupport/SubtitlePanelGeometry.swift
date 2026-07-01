@@ -136,6 +136,14 @@ public enum SubtitlePanelGeometry {
         return CGRect(x: frame.minX, y: y, width: frame.width, height: height)
     }
 
+    public static func frameByFinishingTransientResize(
+        _ frame: CGRect,
+        preferredHeight _: CGFloat,
+        screenFrame _: CGRect
+    ) -> CGRect {
+        frame
+    }
+
     public static func clampedFrame(_ frame: CGRect, to screenFrame: CGRect) -> CGRect {
         let width = min(max(frame.width, min(Self.minimumWidth, screenFrame.width)), min(Self.maximumWidth, screenFrame.width))
         let height = min(max(frame.height, min(Self.minimumHeight, screenFrame.height)), screenFrame.height)

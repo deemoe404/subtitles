@@ -297,14 +297,15 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
                 edges: edges,
                 screenFrame: screenFrame
             )
-            panel.setFrame(
-                frameByApplyingPreferredPanelHeightPreservingBottom(to: nextFrame, screenFrame: screenFrame),
-                display: true
-            )
+            setPanelFrameIfNeeded(nextFrame, display: true)
         }
 
-        panel.setFrame(
-            frameByApplyingPreferredPanelHeightPreservingBottom(to: panel.frame, screenFrame: screenFrame),
+        setPanelFrameIfNeeded(
+            SubtitlePanelGeometry.frameByFinishingTransientResize(
+                panel.frame,
+                preferredHeight: overlayView.preferredPanelHeight(forPanelWidth: panel.frame.width),
+                screenFrame: screenFrame
+            ),
             display: true
         )
 
@@ -454,19 +455,6 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         positionToolbarIfVisible()
     }
 
-    private func applyPreferredPanelHeightAfterTransientInteraction() {
-        let screenFrame = (panel.screen ?? NSScreen.main)?.visibleFrame ?? panel.frame
-        let nextFrame = frameByApplyingPreferredPanelHeightPreservingBottom(
-            to: panel.frame,
-            screenFrame: screenFrame
-        )
-        guard !panel.frame.isNearlyEqual(to: nextFrame) else {
-            return
-        }
-
-        panel.setFrame(nextFrame, display: true)
-    }
-
     private func invalidateToolbarPanelShadow(afterAnimation: Bool = false) {
         if toolbarPanel.hasShadow {
             toolbarPanel.invalidateShadow()
@@ -494,15 +482,11 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         )
     }
 
-    private func frameByApplyingPreferredPanelHeightPreservingBottom(
-        to frame: NSRect,
-        screenFrame: NSRect
-    ) -> NSRect {
-        SubtitlePanelGeometry.frameByApplyingPreferredHeightPreservingBottom(
-            overlayView.preferredPanelHeight(forPanelWidth: frame.width),
-            to: frame,
-            screenFrame: screenFrame
-        )
+    private func setPanelFrameIfNeeded(_ frame: NSRect, display: Bool) {
+        guard !panel.frame.isNearlyEqual(to: frame) else {
+            return
+        }
+        panel.setFrame(frame, display: display)
     }
 
     private static func defaultFrame() -> NSRect {

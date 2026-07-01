@@ -215,6 +215,26 @@ final class SubtitlePanelGeometryTests: XCTestCase {
         XCTAssertEqual(adjusted.width, initial.width)
     }
 
+    func testFinishingTransientResizeIgnoresPreferredHeightChanges() {
+        let initial = CGRect(x: 200, y: 100, width: 800, height: 180)
+        let resized = SubtitlePanelGeometry.resizedFrame(
+            initialFrame: initial,
+            initialMouseLocation: CGPoint(x: initial.maxX, y: initial.midY),
+            currentMouseLocation: CGPoint(x: initial.maxX + 80, y: initial.midY),
+            edges: .right,
+            screenFrame: screenFrame
+        )
+        let final = SubtitlePanelGeometry.frameByFinishingTransientResize(
+            resized,
+            preferredHeight: 120,
+            screenFrame: screenFrame
+        )
+
+        XCTAssertEqual(final, resized)
+        XCTAssertEqual(final.minY, initial.minY)
+        XCTAssertEqual(final.height, initial.height)
+    }
+
     func testPreferredHeightFrameClampsToVisibleScreen() {
         let initial = CGRect(x: 200, y: 760, width: 800, height: 80)
 
