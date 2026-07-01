@@ -61,6 +61,12 @@ app bundle short version, and the GitHub Actions run number is written into the
 bundle build number. Release asset uploads fail if an asset with the same name
 already exists.
 
+## License
+
+Subtitles is source-available under the [PolyForm Noncommercial License
+1.0.0](LICENSE). Commercial use is not permitted without a separate license.
+Packaged app bundles include a copy of the license in `Contents/Resources`.
+
 ## CLI Harness
 
 ```sh

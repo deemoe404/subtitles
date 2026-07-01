@@ -22,6 +22,7 @@ xcrun swift build -c release --product SubtitlesApp
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$ROOT_DIR/.build/release/SubtitlesApp" "$MACOS_DIR/Subtitles"
+cp "$ROOT_DIR/LICENSE" "$RESOURCES_DIR/LICENSE"
 
 cat >"$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
