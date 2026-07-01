@@ -1,4 +1,5 @@
 @preconcurrency import Cocoa
+import QuartzCore
 import SubtitleCore
 import SubtitlesAppSupport
 
@@ -33,7 +34,12 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     private let overlayView = SubtitleOverlayView()
     private let toolbarPanel: SubtitlePanel
     private let toolbarView = SubtitleToolbarView()
+    private let snapPreviewPanel: SubtitleSnapPreviewPanel
+    private let snapPreviewView = SubtitleSnapPreviewView()
     private let resizeCursorCoordinator: SubtitleResizeCursorCoordinator
+    private var snapPreviewDesiredVisible = false
+    private var snapPreviewHideInFlight = false
+    private var snapPreviewFrame: NSRect?
     private var interactionState: InteractionState = .idle
     private var containerChromeVisible = false
     private var toolbarVisible = false
@@ -55,6 +61,12 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         )
         toolbarPanel = SubtitlePanel(
             contentRect: NSRect(x: frame.midX - 240, y: frame.maxY + 8, width: 480, height: 36),
+            styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        snapPreviewPanel = SubtitleSnapPreviewPanel(
+            contentRect: frame,
             styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -85,6 +97,17 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         toolbarPanel.titlebarAppearsTransparent = true
         toolbarPanel.alphaValue = 0
 
+        snapPreviewPanel.contentView = snapPreviewView
+        snapPreviewPanel.isOpaque = false
+        snapPreviewPanel.backgroundColor = .clear
+        snapPreviewPanel.hasShadow = false
+        snapPreviewPanel.hidesOnDeactivate = false
+        snapPreviewPanel.ignoresMouseEvents = true
+        snapPreviewPanel.level = .floating
+        snapPreviewPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        snapPreviewPanel.titleVisibility = .hidden
+        snapPreviewPanel.titlebarAppearsTransparent = true
+
         overlayView.delegate = self
         toolbarView.delegate = self
         resizeCursorCoordinator.attach(panel: panel, overlayView: overlayView)
@@ -112,6 +135,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         overlayView.setInteractionTrackingSuspended(false)
         setToolbarVisible(false, animated: false)
         setContainerChromeVisible(false, animated: false)
+        hideDefaultPositionSnapPreview(animated: false)
         resizeCursorCoordinator.stop()
         overlayView.setCaptionReportingEnabled(false)
         panel.orderOut(nil)
@@ -227,22 +251,49 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
 
         let initialFrame = panel.frame
         let initialMouseLocation = NSEvent.mouseLocation
+        let initialScreenFrame = (panel.screen ?? NSScreen.main)?.visibleFrame ?? initialFrame
+        var snapTargetContainerFrame: NSRect?
 
         while let dragEvent = panel.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
-            if dragEvent.type == .leftMouseUp {
-                break
-            }
-
-            let nextFrame = frameByMoving(
+            let movedFrame = frameByMoving(
                 initialFrame: initialFrame,
                 initialMouseLocation: initialMouseLocation,
                 currentMouseLocation: NSEvent.mouseLocation
             )
-            panel.setFrame(nextFrame, display: true)
+            let movedContainerFrame = SubtitlePanelGeometry.containerFrame(forWindowFrame: movedFrame)
+            let movedScreenFrame = visibleScreenFrame(for: movedContainerFrame, fallback: initialScreenFrame)
+
+            if dragEvent.type == .leftMouseUp {
+                snapTargetContainerFrame = SubtitlePanelGeometry.defaultPositionSnapTargetFrame(
+                    for: movedContainerFrame,
+                    screenFrame: movedScreenFrame
+                )
+                if let snapTargetContainerFrame {
+                    showDefaultPositionSnapPreview(frame: snapTargetContainerFrame)
+                } else {
+                    panel.setFrame(movedFrame, display: true)
+                }
+                break
+            }
+
+            snapTargetContainerFrame = updateDefaultPositionSnapPreview(
+                forContainerFrame: movedContainerFrame,
+                screenFrame: movedScreenFrame
+            )
+            panel.setFrame(movedFrame, display: true)
             positionToolbarIfVisibleDuringTransientInteraction()
         }
 
-        positionToolbarIfVisibleDuringTransientInteraction()
+        if let snapTargetContainerFrame {
+            animatePanelSnap(
+                to: SubtitlePanelGeometry.windowFrame(containingContainerFrame: snapTargetContainerFrame)
+            ) { [weak self] in
+                self?.hideDefaultPositionSnapPreview()
+            }
+        } else {
+            hideDefaultPositionSnapPreview()
+            positionToolbarIfVisibleDuringTransientInteraction()
+        }
 
         overlayView.setInteractionTrackingSuspended(false)
         if overlayView.containsScreenPointInContainerArea(NSEvent.mouseLocation) {
@@ -271,6 +322,25 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         )
     }
 
+    private func visibleScreenFrame(for frame: NSRect, fallback: NSRect) -> NSRect {
+        let candidates = NSScreen.screens.map { screen in
+            let intersection = screen.visibleFrame.intersection(frame)
+            let area = intersection.isNull ? 0 : intersection.width * intersection.height
+            return (screenFrame: screen.visibleFrame, intersectionArea: area)
+        }
+
+        if let best = candidates.max(by: { $0.intersectionArea < $1.intersectionArea }),
+           best.intersectionArea > 0 {
+            return best.screenFrame
+        }
+
+        let frameCenter = NSPoint(x: frame.midX, y: frame.midY)
+        return NSScreen.screens.min { lhs, rhs in
+            lhs.visibleFrame.center.squaredDistance(to: frameCenter) <
+                rhs.visibleFrame.center.squaredDistance(to: frameCenter)
+        }?.visibleFrame ?? fallback
+    }
+
     private func performContainerResize(
         edges: SubtitlePanelGeometry.ResizeEdges,
         initialMouseLocation: NSPoint
@@ -281,6 +351,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         overlayView.setInteractionTrackingSuspended(true)
         setContainerChromeVisible(true, animated: false)
         resizeCursorCoordinator.setForcedResizeEdges(edges)
+        hideDefaultPositionSnapPreview(animated: false)
 
         let initialFrame = panel.frame
         let screenFrame = (panel.screen ?? NSScreen.main)?.visibleFrame ?? initialFrame
@@ -337,6 +408,90 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         }
         containerChromeVisible = visible
         overlayView.setContainerChromeVisible(visible, animated: animated)
+    }
+
+    private func updateDefaultPositionSnapPreview(
+        forContainerFrame containerFrame: NSRect,
+        screenFrame: NSRect
+    ) -> NSRect? {
+        guard let targetFrame = SubtitlePanelGeometry.defaultPositionSnapTargetFrame(
+            for: containerFrame,
+            screenFrame: screenFrame
+        ) else {
+            hideDefaultPositionSnapPreview()
+            return nil
+        }
+
+        showDefaultPositionSnapPreview(frame: targetFrame)
+        return targetFrame
+    }
+
+    private func animatePanelSnap(to frame: NSRect, completion: (() -> Void)? = nil) {
+        guard !panel.frame.isNearlyEqual(to: frame) else {
+            panel.setFrame(frame, display: true)
+            positionToolbarIfVisibleDuringTransientInteraction()
+            completion?()
+            return
+        }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            panel.animator().setFrame(frame, display: true)
+        } completionHandler: { [weak self] in
+            self?.positionToolbarIfVisible()
+            completion?()
+        }
+    }
+
+    private func showDefaultPositionSnapPreview(frame: NSRect) {
+        if snapPreviewFrame?.isNearlyEqual(to: frame) != true {
+            snapPreviewPanel.setFrame(frame, display: true)
+            snapPreviewFrame = frame
+        }
+
+        if !snapPreviewPanel.isVisible {
+            snapPreviewView.setIndicatorVisible(false, animated: false)
+        }
+
+        snapPreviewPanel.order(.below, relativeTo: panel.windowNumber)
+
+        guard !snapPreviewDesiredVisible else {
+            return
+        }
+
+        snapPreviewDesiredVisible = true
+        snapPreviewHideInFlight = false
+        snapPreviewView.setIndicatorVisible(true, animated: true)
+    }
+
+    private func hideDefaultPositionSnapPreview(animated: Bool = true) {
+        guard snapPreviewDesiredVisible || snapPreviewPanel.isVisible else {
+            return
+        }
+
+        if !snapPreviewDesiredVisible, snapPreviewHideInFlight {
+            return
+        }
+
+        snapPreviewDesiredVisible = false
+
+        guard animated else {
+            snapPreviewHideInFlight = false
+            snapPreviewFrame = nil
+            snapPreviewView.setIndicatorVisible(false, animated: false)
+            snapPreviewPanel.orderOut(nil)
+            return
+        }
+
+        snapPreviewHideInFlight = true
+        snapPreviewView.setIndicatorVisible(false, animated: true) { [weak self] in
+            guard let self, !self.snapPreviewDesiredVisible else {
+                return
+            }
+            self.snapPreviewHideInFlight = false
+            self.snapPreviewFrame = nil
+            self.snapPreviewPanel.orderOut(nil)
+        }
     }
 
     private func setToolbarVisible(_ visible: Bool, animated: Bool) {
@@ -491,14 +646,7 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
 
     private static func defaultFrame() -> NSRect {
         let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)
-        let width = min(max(screenFrame.width * 0.72, 640), 980)
-        let height: CGFloat = 150
-        return NSRect(
-            x: screenFrame.midX - width / 2,
-            y: screenFrame.minY + 72,
-            width: width,
-            height: height
-        )
+        return SubtitlePanelGeometry.defaultFrame(in: screenFrame)
     }
 }
 
@@ -509,6 +657,169 @@ final class SubtitlePanel: NSPanel {
 
     override var canBecomeMain: Bool {
         false
+    }
+}
+
+private final class SubtitleSnapPreviewPanel: NSPanel {
+    override var canBecomeKey: Bool {
+        false
+    }
+
+    override var canBecomeMain: Bool {
+        false
+    }
+}
+
+private final class SubtitleSnapPreviewView: NSView {
+    private static let lineWidth: CGFloat = 2
+    private static let cornerRadius: CGFloat = 22
+    private static let showDuration: CFTimeInterval = 0.14
+    private static let hideDuration: CFTimeInterval = 0.16
+    private static let reducedMotionDuration: CFTimeInterval = 0.07
+
+    private let indicatorLayer = CALayer()
+    private let fillLayer = CAShapeLayer()
+    private let strokeLayer = CAShapeLayer()
+    private var visibilityGeneration = 0
+    private var modelOpacity: Float = 0
+
+    override var isOpaque: Bool {
+        false
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setupLayers()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupLayers()
+    }
+
+    override func layout() {
+        super.layout()
+        updateLayerGeometry()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateLayerContentsScale()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        updateLayerContentsScale()
+    }
+
+    func setIndicatorVisible(_ visible: Bool, animated: Bool, completion: (() -> Void)? = nil) {
+        visibilityGeneration += 1
+        let generation = visibilityGeneration
+        let targetOpacity: Float = visible ? 1 : 0
+
+        let currentOpacity = indicatorLayer.presentation()?.opacity ?? modelOpacity
+
+        indicatorLayer.removeAnimation(forKey: "snapPreviewVisibility")
+        setLayerOpacity(targetOpacity)
+
+        guard animated, abs(currentOpacity - targetOpacity) > 0.001 else {
+            completion?()
+            return
+        }
+
+        let opacity = CABasicAnimation(keyPath: "opacity")
+        opacity.fromValue = currentOpacity
+        opacity.toValue = targetOpacity
+
+        let animationGroup = CAAnimationGroup()
+        animationGroup.animations = [opacity]
+        animationGroup.duration = animationDuration(visible: visible)
+        animationGroup.timingFunction = CAMediaTimingFunction(name: visible ? .easeOut : .easeInEaseOut)
+        animationGroup.isRemovedOnCompletion = true
+
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak self] in
+            guard let self, self.visibilityGeneration == generation else {
+                return
+            }
+            completion?()
+        }
+        indicatorLayer.add(animationGroup, forKey: "snapPreviewVisibility")
+        CATransaction.commit()
+    }
+
+    private func setupLayers() {
+        let rootLayer = CALayer()
+        rootLayer.backgroundColor = NSColor.clear.cgColor
+        rootLayer.masksToBounds = false
+        layer = rootLayer
+        wantsLayer = true
+
+        indicatorLayer.masksToBounds = false
+        setLayerOpacity(0)
+
+        fillLayer.fillColor = NSColor.controlAccentColor.withAlphaComponent(0.10).cgColor
+        fillLayer.strokeColor = nil
+
+        strokeLayer.fillColor = NSColor.clear.cgColor
+        strokeLayer.strokeColor = NSColor.controlAccentColor.withAlphaComponent(0.86).cgColor
+        strokeLayer.lineWidth = Self.lineWidth
+        strokeLayer.lineDashPattern = [10, 7]
+        strokeLayer.lineJoin = .round
+        strokeLayer.lineCap = .round
+        strokeLayer.allowsEdgeAntialiasing = true
+
+        layer?.addSublayer(indicatorLayer)
+        indicatorLayer.addSublayer(fillLayer)
+        indicatorLayer.addSublayer(strokeLayer)
+        updateLayerContentsScale()
+    }
+
+    private func updateLayerGeometry() {
+        guard layer != nil else {
+            return
+        }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        indicatorLayer.frame = bounds
+
+        let indicatorBounds = indicatorLayer.bounds
+        let rect = indicatorBounds.insetBy(dx: Self.lineWidth / 2, dy: Self.lineWidth / 2)
+        let path = CGPath(
+            roundedRect: rect,
+            cornerWidth: Self.cornerRadius,
+            cornerHeight: Self.cornerRadius,
+            transform: nil
+        )
+
+        for shapeLayer in [fillLayer, strokeLayer] {
+            shapeLayer.frame = indicatorBounds
+            shapeLayer.path = path
+        }
+        CATransaction.commit()
+    }
+
+    private func setLayerOpacity(_ opacity: Float) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        indicatorLayer.opacity = opacity
+        modelOpacity = opacity
+        CATransaction.commit()
+    }
+
+    private func updateLayerContentsScale() {
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        for layer in [layer, indicatorLayer, fillLayer, strokeLayer] {
+            layer?.contentsScale = scale
+        }
+    }
+
+    private func animationDuration(visible: Bool) -> CFTimeInterval {
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            return Self.reducedMotionDuration
+        }
+        return visible ? Self.showDuration : Self.hideDuration
     }
 }
 
@@ -605,10 +916,22 @@ private final class SubtitleResizeCursorCoordinator {
 }
 
 private extension CGRect {
+    var center: CGPoint {
+        CGPoint(x: midX, y: midY)
+    }
+
     func isNearlyEqual(to other: CGRect) -> Bool {
         abs(minX - other.minX) < 0.5 &&
             abs(minY - other.minY) < 0.5 &&
             abs(width - other.width) < 0.5 &&
             abs(height - other.height) < 0.5
+    }
+}
+
+private extension CGPoint {
+    func squaredDistance(to other: CGPoint) -> CGFloat {
+        let dx = x - other.x
+        let dy = y - other.y
+        return dx * dx + dy * dy
     }
 }

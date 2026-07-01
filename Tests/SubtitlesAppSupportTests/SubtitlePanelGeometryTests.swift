@@ -11,6 +11,23 @@ final class SubtitlePanelGeometryTests: XCTestCase {
         XCTAssertEqual(rect, CGRect(x: 24, y: 24, width: 852, height: 112))
     }
 
+    func testContainerFrameConvertsFromWindowFrame() {
+        let windowFrame = CGRect(x: 100, y: 50, width: 900, height: 160)
+        let containerFrame = SubtitlePanelGeometry.containerFrame(forWindowFrame: windowFrame)
+
+        XCTAssertEqual(containerFrame, CGRect(x: 124, y: 74, width: 852, height: 112))
+        XCTAssertEqual(
+            SubtitlePanelGeometry.windowFrame(containingContainerFrame: containerFrame),
+            windowFrame
+        )
+    }
+
+    func testDefaultFrameUsesBottomCenteredPosition() {
+        let frame = SubtitlePanelGeometry.defaultFrame(in: screenFrame)
+
+        XCTAssertEqual(frame, CGRect(x: 168, y: 72, width: 864, height: 150))
+    }
+
     func testChromeRenderRectExpandsAroundContainerWithoutLeavingBounds() {
         let rect = SubtitlePanelGeometry.chromeRenderRect(in: CGRect(x: 0, y: 0, width: 900, height: 160))
 
@@ -313,5 +330,60 @@ final class SubtitlePanelGeometryTests: XCTestCase {
 
         XCTAssertEqual(resized.minX, initial.minX)
         XCTAssertEqual(resized.width, SubtitlePanelGeometry.minimumWidth)
+    }
+
+    func testDefaultPositionSnapTargetIsNilForDistantFrames() {
+        let target = SubtitlePanelGeometry.containerFrame(
+            forWindowFrame: SubtitlePanelGeometry.defaultFrame(in: screenFrame)
+        )
+        let frame = target.offsetBy(dx: 220, dy: 120)
+
+        let snapTarget = SubtitlePanelGeometry.defaultPositionSnapTargetFrame(
+            for: frame,
+            screenFrame: screenFrame
+        )
+
+        XCTAssertNil(snapTarget)
+    }
+
+    func testDefaultPositionSnapTargetAppearsForNearFrames() {
+        let target = SubtitlePanelGeometry.containerFrame(
+            forWindowFrame: SubtitlePanelGeometry.defaultFrame(in: screenFrame)
+        )
+        let frame = target.offsetBy(dx: 6, dy: -4)
+
+        let snapTarget = SubtitlePanelGeometry.defaultPositionSnapTargetFrame(
+            for: frame,
+            screenFrame: screenFrame
+        )
+
+        XCTAssertEqual(snapTarget, target)
+    }
+
+    func testDefaultPositionSnapTargetDoesNotMoveDraggedFrame() {
+        let target = SubtitlePanelGeometry.containerFrame(
+            forWindowFrame: SubtitlePanelGeometry.defaultFrame(in: screenFrame)
+        )
+        let frame = target.offsetBy(dx: 40, dy: 0)
+
+        let snapTarget = SubtitlePanelGeometry.defaultPositionSnapTargetFrame(
+            for: frame,
+            screenFrame: screenFrame
+        )
+
+        XCTAssertEqual(snapTarget, target)
+        XCTAssertEqual(frame.minX, target.minX + 40)
+    }
+
+    func testDefaultPositionSnapTargetUsesCurrentPanelSize() {
+        let resizedFrame = CGRect(x: 355, y: 100, width: 500, height: 180)
+
+        let snapTarget = SubtitlePanelGeometry.defaultPositionSnapTargetFrame(
+            for: resizedFrame,
+            screenFrame: screenFrame
+        )
+
+        XCTAssertEqual(snapTarget?.size, resizedFrame.size)
+        XCTAssertEqual(snapTarget?.origin, CGPoint(x: 350, y: 96))
     }
 }

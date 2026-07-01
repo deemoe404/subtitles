@@ -20,10 +20,37 @@ public enum SubtitlePanelGeometry {
     public static let minimumWidth: CGFloat = 420
     public static let maximumWidth: CGFloat = 1400
     public static let minimumHeight: CGFloat = 96
+    public static let defaultPanelHeight: CGFloat = 150
+    public static let defaultPanelBottomInset: CGFloat = 72
+    public static let defaultPositionSnapDistance: CGFloat = 72
+
+    public static func defaultFrame(in screenFrame: CGRect) -> CGRect {
+        let width = min(max(screenFrame.width * 0.72, 640), 980)
+        return CGRect(
+            x: screenFrame.midX - width / 2,
+            y: screenFrame.minY + defaultPanelBottomInset,
+            width: width,
+            height: defaultPanelHeight
+        )
+    }
 
     public static func containerRect(in bounds: CGRect) -> CGRect {
         let inset = min(chromeInset, bounds.width / 2, bounds.height / 2)
         return bounds.insetBy(dx: inset, dy: inset)
+    }
+
+    public static func containerFrame(forWindowFrame windowFrame: CGRect) -> CGRect {
+        let container = containerRect(in: CGRect(origin: .zero, size: windowFrame.size))
+        return container.offsetBy(dx: windowFrame.minX, dy: windowFrame.minY)
+    }
+
+    public static func windowFrame(containingContainerFrame containerFrame: CGRect) -> CGRect {
+        CGRect(
+            x: containerFrame.minX - chromeInset,
+            y: containerFrame.minY - chromeInset,
+            width: containerFrame.width + 2 * chromeInset,
+            height: containerFrame.height + 2 * chromeInset
+        )
     }
 
     public static func chromeRenderRect(in bounds: CGRect) -> CGRect {
@@ -150,6 +177,29 @@ public enum SubtitlePanelGeometry {
         let x = clamp(frame.minX, screenFrame.minX, screenFrame.maxX - width)
         let y = clamp(frame.minY, screenFrame.minY, screenFrame.maxY - height)
         return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    public static func defaultPositionSnapTargetFrame(
+        for frame: CGRect,
+        screenFrame: CGRect
+    ) -> CGRect? {
+        let target = defaultPositionedFrame(for: frame, screenFrame: screenFrame)
+        let offset = CGPoint(x: frame.minX - target.minX, y: frame.minY - target.minY)
+        let distance = hypot(offset.x, offset.y)
+
+        return distance < defaultPositionSnapDistance ? target : nil
+    }
+
+    private static func defaultPositionedFrame(for frame: CGRect, screenFrame: CGRect) -> CGRect {
+        let desired = CGRect(
+            x: screenFrame.midX - frame.width / 2,
+            y: screenFrame.minY + defaultPanelBottomInset + chromeInset,
+            width: frame.width,
+            height: frame.height
+        )
+        let x = clamp(desired.minX, screenFrame.minX, screenFrame.maxX - frame.width)
+        let y = clamp(desired.minY, screenFrame.minY, screenFrame.maxY - frame.height)
+        return CGRect(x: x, y: y, width: frame.width, height: frame.height)
     }
 
     private static func clamp(_ value: CGFloat, _ lowerBound: CGFloat, _ upperBound: CGFloat) -> CGFloat {
