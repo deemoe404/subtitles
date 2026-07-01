@@ -130,8 +130,8 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     }
 
     func setLoadedFileName(_ fileName: String) {
-        toolbarView.setLoadedFileName(fileName)
-        positionToolbarIfVisible()
+        overlayView.setLoadedFileName(fileName)
+        applyPreferredPanelHeightIfNeeded(display: true)
     }
 
     func windowWillClose(_ notification: Notification) {

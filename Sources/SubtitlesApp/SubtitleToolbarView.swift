@@ -68,11 +68,6 @@ final class SubtitleToolbarView: NSView {
         invalidateIntrinsicContentSize()
     }
 
-    func setLoadedFileName(_ fileName: String?) {
-        model.loadedFileName = fileName
-        invalidateIntrinsicContentSize()
-    }
-
     private func setupView() {
         translatesAutoresizingMaskIntoConstraints = true
         autoresizingMask = [.width, .height]
@@ -116,7 +111,6 @@ private final class SubtitleToolbarModel: ObservableObject {
     @Published var playbackTime: TimeInterval = 0
     @Published var offset: TimeInterval = 0
     @Published var sourceLabel = "Manual"
-    @Published var loadedFileName: String?
 
     var adjustOffset: ((TimeInterval) -> Void)?
     var requestAppleTVCalibration: (() -> Void)?
@@ -289,15 +283,6 @@ private struct SubtitleToolbarContentView: View {
                 ) {
                     model.adjustOffset?(-0.5)
                 }
-            }
-
-            if let fileName = model.loadedFileName {
-                Text(fileName)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .foregroundStyle(.tertiary)
-                    .frame(maxWidth: 220, alignment: .leading)
             }
         }
     }

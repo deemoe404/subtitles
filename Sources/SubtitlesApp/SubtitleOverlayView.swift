@@ -13,6 +13,11 @@ protocol SubtitleOverlayViewDelegate: AnyObject {
 }
 
 final class SubtitleOverlayView: NSView {
+    private static let fileNameFont = NSFont.systemFont(ofSize: 12, weight: .medium)
+    private static let fileNameHorizontalInset: CGFloat = 52
+    private static let fileNameBottomInset: CGFloat = 28
+    private static let fileNameSubtitleGap: CGFloat = 12
+
     private enum TrackingRole: String {
         case subtitle
         case container
@@ -35,6 +40,7 @@ final class SubtitleOverlayView: NSView {
 
     private let subtitleBackdropView = NSView()
     private let subtitleLabel = NSTextField(labelWithString: placeholderText)
+    private let fileNameLabel = NSTextField(labelWithString: "")
     private let containerChromeView = NSHostingView(rootView: SubtitleContainerChromeContentView())
     private let resizeHandleCueView = NSHostingView(rootView: SubtitleResizeHandlesContentView())
 
@@ -44,6 +50,8 @@ final class SubtitleOverlayView: NSView {
     private var isInteractionTrackingSuspended = false
     private var isReportingCaptions = true
     private var lastReportedCaptionText: String?
+    private var loadedFileName: String?
+    private var subtitleFileNameGapConstraint: NSLayoutConstraint?
     private var trackingAreaRefs: [NSTrackingArea] = []
 
     override init(frame frameRect: NSRect) {
@@ -67,6 +75,7 @@ final class SubtitleOverlayView: NSView {
     }
 
     override func layout() {
+        updateFileNamePreferredWidth()
         super.layout()
         if !isInteractionTrackingSuspended {
             rebuildTrackingAreas()
@@ -160,6 +169,15 @@ final class SubtitleOverlayView: NSView {
         reportDisplayedCaptions(force: true)
     }
 
+    func setLoadedFileName(_ fileName: String?) {
+        guard loadedFileName != fileName else {
+            return
+        }
+
+        loadedFileName = fileName
+        updateLoadedFileName()
+    }
+
     func setInteractionTrackingSuspended(_ suspended: Bool) {
         guard suspended != isInteractionTrackingSuspended else {
             return
@@ -185,6 +203,7 @@ final class SubtitleOverlayView: NSView {
             context.duration = animated ? 0.12 : 0
             containerChromeView.animator().alphaValue = visible ? 1 : 0
             resizeHandleCueView.animator().alphaValue = visible ? 1 : 0
+            fileNameLabel.animator().alphaValue = visible && hasLoadedFileName ? 1 : 0
         }
     }
 
@@ -216,10 +235,33 @@ final class SubtitleOverlayView: NSView {
         subtitleLabel.lineBreakMode = .byWordWrapping
         subtitleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
+        fileNameLabel.translatesAutoresizingMaskIntoConstraints = false
+        fileNameLabel.alignment = .center
+        fileNameLabel.maximumNumberOfLines = 0
+        fileNameLabel.lineBreakMode = .byCharWrapping
+        fileNameLabel.alphaValue = 0
+        fileNameLabel.isHidden = true
+        fileNameLabel.setContentCompressionResistancePriority(.required, for: .vertical)
+        fileNameLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        if let cell = fileNameLabel.cell as? NSTextFieldCell {
+            cell.wraps = true
+            cell.isScrollable = false
+            cell.lineBreakMode = .byCharWrapping
+            cell.usesSingleLineMode = false
+        }
+
         addSubview(containerChromeView)
         addSubview(subtitleBackdropView)
+        addSubview(fileNameLabel)
         addSubview(resizeHandleCueView)
         subtitleBackdropView.addSubview(subtitleLabel)
+
+        let subtitleFileNameGapConstraint = subtitleBackdropView.bottomAnchor.constraint(
+            lessThanOrEqualTo: fileNameLabel.topAnchor,
+            constant: -Self.fileNameSubtitleGap
+        )
+        subtitleFileNameGapConstraint.priority = .defaultHigh
+        self.subtitleFileNameGapConstraint = subtitleFileNameGapConstraint
 
         NSLayoutConstraint.activate([
             containerChromeView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: SubtitlePanelGeometry.chromeInset),
@@ -236,6 +278,10 @@ final class SubtitleOverlayView: NSView {
             subtitleBackdropView.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -6),
             subtitleBackdropView.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 24),
             subtitleBackdropView.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -24),
+
+            fileNameLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.fileNameHorizontalInset),
+            fileNameLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.fileNameHorizontalInset),
+            fileNameLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -Self.fileNameBottomInset),
 
             subtitleLabel.leadingAnchor.constraint(equalTo: subtitleBackdropView.leadingAnchor, constant: 16),
             subtitleLabel.trailingAnchor.constraint(equalTo: subtitleBackdropView.trailingAnchor, constant: -16),
@@ -379,10 +425,18 @@ final class SubtitleOverlayView: NSView {
             string: displaySubtitleText(),
             attributes: captionAppearance.subtitleAttributes()
         )
-        let textHeight = measuredTextHeight(attributedText, constrainedTo: labelWidth)
+        let textHeight = measuredTextHeight(
+            attributedText,
+            constrainedTo: labelWidth,
+            maximumNumberOfLines: subtitleLabel.maximumNumberOfLines,
+            lineBreakMode: subtitleLabel.lineBreakMode
+        )
+        let fileNameHeight = measuredLoadedFileNameHeight(forPanelWidth: width)
         let labelVerticalPadding: CGFloat = 16
+        let fileNameVerticalSpace = fileNameHeight > 0 ? fileNameHeight + Self.fileNameSubtitleGap : 0
         let containerVerticalPadding: CGFloat = 56
         return ceil(textHeight + labelVerticalPadding + containerVerticalPadding)
+            + ceil(fileNameVerticalSpace)
     }
 
     private func resizeEdges(at point: NSPoint) -> SubtitlePanelGeometry.ResizeEdges? {
@@ -424,19 +478,79 @@ final class SubtitleOverlayView: NSView {
         delegate?.subtitleOverlayViewDidUpdatePreferredHeight(self)
     }
 
+    private func updateLoadedFileName() {
+        let fileName = loadedFileNameForDisplay
+        fileNameLabel.isHidden = fileName == nil
+        fileNameLabel.alphaValue = fileName != nil && isContainerChromeVisible ? 1 : 0
+        subtitleFileNameGapConstraint?.isActive = fileName != nil
+
+        fileNameLabel.attributedStringValue = NSAttributedString(
+            string: fileName ?? "",
+            attributes: fileNameAttributes()
+        )
+        updateFileNamePreferredWidth()
+        delegate?.subtitleOverlayViewDidUpdatePreferredHeight(self)
+    }
+
     private func displaySubtitleText() -> String {
         subtitleText.isEmpty ? " " : subtitleText
     }
 
-    private func measuredTextHeight(_ attributedText: NSAttributedString, constrainedTo width: CGFloat) -> CGFloat {
+    private var hasLoadedFileName: Bool {
+        loadedFileNameForDisplay != nil
+    }
+
+    private var loadedFileNameForDisplay: String? {
+        guard let loadedFileName, !loadedFileName.isEmpty else {
+            return nil
+        }
+        return loadedFileName
+    }
+
+    private func measuredLoadedFileNameHeight(forPanelWidth width: CGFloat) -> CGFloat {
+        guard let fileName = loadedFileNameForDisplay else {
+            return 0
+        }
+
+        let labelWidth = max(1, width - 2 * Self.fileNameHorizontalInset)
+        return measuredTextHeight(
+            NSAttributedString(string: fileName, attributes: fileNameAttributes()),
+            constrainedTo: labelWidth,
+            maximumNumberOfLines: 0,
+            lineBreakMode: .byCharWrapping
+        )
+    }
+
+    private func updateFileNamePreferredWidth() {
+        fileNameLabel.preferredMaxLayoutWidth = max(1, bounds.width - 2 * Self.fileNameHorizontalInset)
+    }
+
+    private func fileNameAttributes() -> [NSAttributedString.Key: Any] {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
+        paragraphStyle.lineBreakMode = .byCharWrapping
+
+        return [
+            .font: Self.fileNameFont,
+            .foregroundColor: NSColor.secondaryLabelColor,
+            .paragraphStyle: paragraphStyle
+        ]
+    }
+
+    private func measuredTextHeight(
+        _ attributedText: NSAttributedString,
+        constrainedTo width: CGFloat,
+        maximumNumberOfLines: Int,
+        lineBreakMode: NSLineBreakMode
+    ) -> CGFloat {
         let textStorage = NSTextStorage(attributedString: attributedText)
         let layoutManager = NSLayoutManager()
         let textContainer = NSTextContainer(
             containerSize: NSSize(width: width, height: CGFloat.greatestFiniteMagnitude)
         )
         textContainer.lineFragmentPadding = 0
-        textContainer.maximumNumberOfLines = subtitleLabel.maximumNumberOfLines
-        textContainer.lineBreakMode = subtitleLabel.lineBreakMode
+        textContainer.maximumNumberOfLines = maximumNumberOfLines
+        textContainer.lineBreakMode = lineBreakMode
 
         layoutManager.addTextContainer(textContainer)
         textStorage.addLayoutManager(layoutManager)
