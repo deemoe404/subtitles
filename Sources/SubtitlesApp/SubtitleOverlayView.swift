@@ -9,6 +9,12 @@ protocol SubtitleOverlayViewDelegate: AnyObject {
     func subtitleOverlayViewDidUpdatePreferredHeight(_ view: SubtitleOverlayView)
     func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestContainerResize edges: SubtitlePanelGeometry.ResizeEdges, initialMouseLocation: NSPoint)
     func subtitleOverlayView(_ view: SubtitleOverlayView, didRequestContainerMoveWith event: NSEvent)
+    func subtitleOverlayView(_ view: SubtitleOverlayView, draggingEntered sender: NSDraggingInfo) -> NSDragOperation
+    func subtitleOverlayView(_ view: SubtitleOverlayView, draggingUpdated sender: NSDraggingInfo) -> NSDragOperation
+    func subtitleOverlayView(_ view: SubtitleOverlayView, performDragOperation sender: NSDraggingInfo) -> Bool
+    func subtitleOverlayView(_ view: SubtitleOverlayView, draggingExited sender: NSDraggingInfo?)
+    func subtitleOverlayView(_ view: SubtitleOverlayView, draggingEnded sender: NSDraggingInfo)
+    func subtitleOverlayView(_ view: SubtitleOverlayView, concludeDragOperation sender: NSDraggingInfo?)
 }
 
 final class SubtitleOverlayView: NSView {
@@ -17,6 +23,7 @@ final class SubtitleOverlayView: NSView {
     private static let fileNameBottomInsetInsideContainer: CGFloat = 8
     private static let fileNameSubtitleGap: CGFloat = 6
     private static let subtitleTopInsetInsideContainer: CGFloat = 10
+    private static let dropActivationAlpha: CGFloat = 1 / 255
     private static let noFileSelectedText = "No subtitle file selected"
 
     private enum TrackingRole: String {
@@ -42,6 +49,7 @@ final class SubtitleOverlayView: NSView {
     private let subtitleBackdropView = NSView()
     private let subtitleLabel = NSTextField(labelWithString: placeholderText)
     private let fileNameLabel = NSTextField(labelWithString: "")
+    private let dropActivationView = NSView()
     private let containerChromeView = NSHostingView(rootView: SubtitleContainerChromeContentView())
     private let resizeHandleCueView = NSHostingView(rootView: SubtitleResizeHandlesContentView())
 
@@ -89,7 +97,7 @@ final class SubtitleOverlayView: NSView {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard isInteractivePoint(point) || resizeEdges(at: point) != nil else {
+        guard isPanelPoint(point) || resizeEdges(at: point) != nil else {
             return nil
         }
 
@@ -102,7 +110,7 @@ final class SubtitleOverlayView: NSView {
         }
 
         let point = convert(event.locationInWindow, from: nil)
-        return isInteractivePoint(point) || resizeEdges(at: point) != nil
+        return isPanelPoint(point) || resizeEdges(at: point) != nil
     }
 
     override func mouseEntered(with event: NSEvent) {
@@ -153,6 +161,30 @@ final class SubtitleOverlayView: NSView {
         delegate?.subtitleOverlayView(self, didRequestContainerMoveWith: event)
     }
 
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        delegate?.subtitleOverlayView(self, draggingEntered: sender) ?? []
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        delegate?.subtitleOverlayView(self, draggingUpdated: sender) ?? []
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        delegate?.subtitleOverlayView(self, performDragOperation: sender) ?? false
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        delegate?.subtitleOverlayView(self, draggingExited: sender)
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        delegate?.subtitleOverlayView(self, draggingEnded: sender)
+    }
+
+    override func concludeDragOperation(_ sender: NSDraggingInfo?) {
+        delegate?.subtitleOverlayView(self, concludeDragOperation: sender)
+    }
+
     func setCaptionReportingEnabled(_ enabled: Bool) {
         isReportingCaptions = enabled
         reportDisplayedCaptions(force: true)
@@ -201,6 +233,18 @@ final class SubtitleOverlayView: NSView {
         layer?.backgroundColor = NSColor.clear.cgColor
         layer?.cornerRadius = 8
         layer?.borderWidth = 0
+        registerForDraggedTypes([.fileURL])
+
+        dropActivationView.translatesAutoresizingMaskIntoConstraints = false
+        dropActivationView.wantsLayer = true
+        // This layer is intentionally almost invisible. On transparent borderless
+        // panels, fully transparent pixels do not reliably become file-drag
+        // destinations even when hitTest returns this view. Keeping the drop
+        // area nonzero-alpha makes the hidden card area participate in AppKit
+        // drag destination routing without changing the visible chrome state.
+        dropActivationView.layer?.backgroundColor = NSColor.black
+            .withAlphaComponent(Self.dropActivationAlpha)
+            .cgColor
 
         containerChromeView.translatesAutoresizingMaskIntoConstraints = false
         containerChromeView.alphaValue = 0
@@ -238,6 +282,7 @@ final class SubtitleOverlayView: NSView {
             cell.usesSingleLineMode = false
         }
 
+        addSubview(dropActivationView)
         addSubview(containerChromeView)
         addSubview(subtitleBackdropView)
         addSubview(fileNameLabel)
@@ -252,6 +297,11 @@ final class SubtitleOverlayView: NSView {
         self.subtitleFileNameGapConstraint = subtitleFileNameGapConstraint
 
         NSLayoutConstraint.activate([
+            dropActivationView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: SubtitlePanelGeometry.chromeInset),
+            dropActivationView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -SubtitlePanelGeometry.chromeInset),
+            dropActivationView.topAnchor.constraint(equalTo: topAnchor, constant: SubtitlePanelGeometry.chromeInset),
+            dropActivationView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -SubtitlePanelGeometry.chromeInset),
+
             containerChromeView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: chromeRenderInset),
             containerChromeView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -chromeRenderInset),
             containerChromeView.topAnchor.constraint(equalTo: topAnchor, constant: chromeRenderInset),
@@ -289,7 +339,7 @@ final class SubtitleOverlayView: NSView {
         trackingAreaRefs.removeAll()
 
         addTrackingArea(for: subtitleBackdropView.frame, role: .subtitle)
-        // Keep hidden chrome discoverable on hover without widening click hit testing.
+        // Keep hidden chrome discoverable on hover and as a file drop target.
         addTrackingArea(for: containerRect(), role: .container)
         addResizeCursorTrackingAreas()
     }
@@ -369,6 +419,10 @@ final class SubtitleOverlayView: NSView {
         }
 
         return false
+    }
+
+    private func isPanelPoint(_ point: NSPoint) -> Bool {
+        containerRect().containsPointInclusively(point)
     }
 
     func containsScreenPointInInteractiveArea(_ screenPoint: NSPoint) -> Bool {

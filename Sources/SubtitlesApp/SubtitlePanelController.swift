@@ -233,6 +233,30 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         performContainerMove(with: event)
     }
 
+    func subtitleOverlayView(_ view: SubtitleOverlayView, draggingEntered sender: NSDraggingInfo) -> NSDragOperation {
+        dragOperation(for: sender)
+    }
+
+    func subtitleOverlayView(_ view: SubtitleOverlayView, draggingUpdated sender: NSDraggingInfo) -> NSDragOperation {
+        dragOperation(for: sender)
+    }
+
+    func subtitleOverlayView(_ view: SubtitleOverlayView, performDragOperation sender: NSDraggingInfo) -> Bool {
+        performSubtitleFileDragOperation(sender)
+    }
+
+    func subtitleOverlayView(_ view: SubtitleOverlayView, draggingExited sender: NSDraggingInfo?) {
+        finishSubtitleFileDrag()
+    }
+
+    func subtitleOverlayView(_ view: SubtitleOverlayView, draggingEnded sender: NSDraggingInfo) {
+        finishSubtitleFileDrag()
+    }
+
+    func subtitleOverlayView(_ view: SubtitleOverlayView, concludeDragOperation sender: NSDraggingInfo?) {
+        finishSubtitleFileDrag()
+    }
+
     func subtitlePanel(_ panel: SubtitlePanel, draggingEntered sender: NSDraggingInfo) -> NSDragOperation {
         dragOperation(for: sender)
     }
@@ -242,6 +266,10 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
     }
 
     func subtitlePanel(_ panel: SubtitlePanel, performDragOperation sender: NSDraggingInfo) -> Bool {
+        performSubtitleFileDragOperation(sender)
+    }
+
+    private func performSubtitleFileDragOperation(_ sender: NSDraggingInfo) -> Bool {
         defer {
             finishSubtitleFileDrag()
         }
