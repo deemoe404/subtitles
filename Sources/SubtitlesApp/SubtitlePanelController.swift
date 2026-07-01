@@ -217,30 +217,29 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         delegate?.subtitlePanelDidRequestAppleTVCalibration(self)
     }
 
-    private func performContainerMove(with event: NSEvent) {
+    private func performContainerMove(with _: NSEvent) {
         pendingChromeHide?.cancel()
         pendingChromeHide = nil
         interactionState = .moving
         overlayView.setInteractionTrackingSuspended(true)
 
         let initialFrame = panel.frame
-        let initialMouseLocation = screenLocation(for: event)
+        let initialMouseLocation = NSEvent.mouseLocation
 
         while let dragEvent = panel.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
-            let nextFrame = frameByMoving(
-                initialFrame: initialFrame,
-                initialMouseLocation: initialMouseLocation,
-                currentMouseLocation: screenLocation(for: dragEvent)
-            )
-            panel.setFrame(nextFrame, display: true)
-            positionToolbarIfVisibleDuringTransientInteraction()
-
             if dragEvent.type == .leftMouseUp {
                 break
             }
+
+            let nextFrame = frameByMoving(
+                initialFrame: initialFrame,
+                initialMouseLocation: initialMouseLocation,
+                currentMouseLocation: NSEvent.mouseLocation
+            )
+            panel.setFrame(nextFrame, display: true)
+            positionToolbarIfVisibleDuringTransientInteraction()
         }
 
-        applyPreferredPanelHeightAfterTransientInteraction()
         positionToolbarIfVisibleDuringTransientInteraction()
 
         overlayView.setInteractionTrackingSuspended(false)
@@ -251,13 +250,6 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
             interactionState = .idle
         }
         scheduleChromeHideIfNeeded()
-    }
-
-    private func screenLocation(for event: NSEvent) -> NSPoint {
-        guard let window = event.window else {
-            return NSEvent.mouseLocation
-        }
-        return window.convertPoint(toScreen: event.locationInWindow)
     }
 
     private func frameByMoving(
