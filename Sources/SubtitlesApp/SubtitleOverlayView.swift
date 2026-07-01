@@ -299,9 +299,8 @@ final class SubtitleOverlayView: NSView {
         trackingAreaRefs.removeAll()
 
         addTrackingArea(for: subtitleBackdropView.frame, role: .subtitle)
-        if isContainerChromeVisible {
-            addTrackingArea(for: containerRect(), role: .container)
-        }
+        // Keep hidden chrome discoverable on hover without widening click hit testing.
+        addTrackingArea(for: containerRect(), role: .container)
         addResizeCursorTrackingAreas()
     }
 
