@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../assets/schema/tabs.json
+
+Home:
+  en:
+    title: One More Cap
+    location: tab/home/en.md
+  chs:
+    title: One More Cap
+    location: tab/home/chs.md
+Privacy:
+  en:
+    title: Privacy Policy
+    location: tab/privacy/en.md
+  chs:
+    title: 隐私政策
+    location: tab/privacy/chs.md
+Support:
+  en:
+    title: Support
+    location: tab/support/en.md
+  chs:
+    title: 支持
+    location: tab/support/chs.md

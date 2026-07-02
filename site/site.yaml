@@ -1,0 +1,37 @@
+siteTitle: One More Cap
+siteSubtitle:
+  en: Extra subtitles for the movie in front of you.
+  chs: 给正在播放的电影多加一层字幕。
+siteDescription:
+  en: One More Cap is a native macOS menu-bar app for displaying an external subtitle file over QuickTime Player.
+  chs: One More Cap 是一个 macOS 菜单栏 app，用来把外部字幕文件叠加到 QuickTime Player 上方。
+siteKeywords:
+  en: macOS subtitles, QuickTime subtitles, SRT, WebVTT, captions
+  chs: macOS 字幕, QuickTime 字幕, SRT, WebVTT, captions
+contentRoot: wwwroot
+themeMode: auto
+themePack: arcus
+defaultLanguage: en
+showAllPosts: false
+landingTab: Home
+cachePolicy:
+  content: no-store
+  editorContent: no-store
+avatar: assets/onemorecap/app-icon.png
+profileLinks:
+  - label: GitHub
+    href: https://github.com/deemoe404/onemorecap
+  - label: Releases
+    href: https://github.com/deemoe404/onemorecap/releases/latest
+  - label: Support
+    href: https://github.com/deemoe404/onemorecap/issues
+annotate:
+  enabled: false
+  connectBaseUrl: https://connect-8mr.pages.dev
+  discussionCategory: General
+repoAutofillFromPages: true
+repo:
+  provider: github
+  owner: deemoe404
+  name: onemorecap
+  branch: main

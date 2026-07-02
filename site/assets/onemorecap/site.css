@@ -1,0 +1,49 @@
+.arcus-utility__search,
+.arcus-main__search-toggle,
+.arcus-search-toggle,
+.arcus-tagband,
+.arcus-toc,
+.arcus-toc-dock,
+.native-searchbox,
+.native-tagbox,
+.native-toc,
+press-theme-controls [data-group="theme"],
+press-theme-controls [data-group="editor"],
+press-theme-controls [data-role="language-reset"] {
+  display: none !important;
+}
+
+.arcus-footer__list li:has(a[href*="tab=search"]),
+.arcus-footer__list a[href*="tab=search"] {
+  display: none !important;
+}
+
+.anchor {
+  display: none !important;
+}
+
+:root {
+  --arcus-accent: #d66a4d;
+  --arcus-accent-soft: rgba(214, 106, 77, 0.13);
+  --arcus-accent-strong: #ad4d36;
+  --arcus-tag-bg: rgba(214, 106, 77, 0.1);
+  --arcus-tag-text: #5a463f;
+}
+
+[data-theme="dark"] {
+  --arcus-accent: #ff9a77;
+  --arcus-accent-soft: rgba(255, 154, 119, 0.18);
+  --arcus-accent-strong: #ffc0aa;
+  --arcus-tag-bg: rgba(255, 154, 119, 0.16);
+  --arcus-tag-text: #ffd2c4;
+}
+
+.site-card img,
+.site-card .avatar,
+.site-card [class*="avatar"] {
+  border-radius: 22%;
+}
+
+.site-card {
+  text-align: center;
+}

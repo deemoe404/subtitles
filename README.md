@@ -61,6 +61,12 @@ Store version is separate and supports QuickTime sync only.
 - [Permissions](docs/permissions.md)
 - [Known Limitations](docs/known-limitations.md)
 
+## Website
+
+The App Store support and privacy pages live in `site/`. The site is a
+self-contained Press static site deployed from this repository through GitHub
+Pages.
+
 ## License
 
 One More Cap is source-available under the [PolyForm Noncommercial License

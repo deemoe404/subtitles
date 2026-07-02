@@ -1,0 +1,131 @@
+import { EDITOR_SHELL_IDS } from './editor-shell-contract.js?v=press-system-v3.4.125';
+
+export function animateEditorSystemPanelContent({
+  documentRef = null,
+  setTimeoutRef = null,
+  clearTimeoutRef = null
+} = {}) {
+  if (!documentRef || typeof documentRef.getElementById !== 'function') return;
+  const panel = documentRef.getElementById(EDITOR_SHELL_IDS.editorSystemPanel);
+  if (!panel) return;
+  const setTimer = typeof setTimeoutRef === 'function'
+    ? setTimeoutRef
+    : (handler) => {
+      if (typeof handler === 'function') handler();
+      return 0;
+    };
+  const clearTimer = typeof clearTimeoutRef === 'function'
+    ? clearTimeoutRef
+    : (id) => {
+      if (id == null) return;
+    };
+  try {
+    const previousTimer = panel.__pressSystemAnimationTimer;
+    if (previousTimer) clearTimer(previousTimer);
+  } catch (_) {}
+  panel.classList.remove('is-content-entering');
+  try { panel.getBoundingClientRect(); } catch (_) {}
+  panel.classList.add('is-content-entering');
+  try {
+    panel.__pressSystemAnimationTimer = setTimer(() => {
+      panel.classList.remove('is-content-entering');
+      panel.__pressSystemAnimationTimer = null;
+    }, 260);
+  } catch (_) {}
+}
+
+export function showEditorSystemPanel(mode, deps = {}) {
+  const {
+    documentRef = null,
+    setTimeoutRef = null,
+    clearTimeoutRef = null,
+    treeText = (_key, fallback) => fallback,
+    mountEditorSystemPanels = () => {},
+    setEditorSystemPanelVisible = () => {},
+    getActiveComposerFile = () => '',
+    applyComposerFile = () => {},
+    resetSiteSettingsNavOnOpen = () => {},
+    refreshSyncCommitPanel = () => {},
+    animatePanel = () => animateEditorSystemPanelContent({
+      documentRef,
+      setTimeoutRef,
+      clearTimeoutRef
+    })
+  } = deps;
+  if (!documentRef || typeof documentRef.getElementById !== 'function') return;
+  const nextMode = mode === 'sync' ? 'sync' : (mode === 'updates' ? 'updates' : (mode === 'themes' ? 'themes' : 'composer'));
+  mountEditorSystemPanels();
+  const panel = documentRef.getElementById(EDITOR_SHELL_IDS.editorSystemPanel);
+  const title = documentRef.getElementById(EDITOR_SHELL_IDS.editorSystemTitle);
+  const kicker = documentRef.getElementById(EDITOR_SHELL_IDS.editorSystemKicker);
+  const meta = documentRef.getElementById(EDITOR_SHELL_IDS.editorSystemMeta);
+  const actions = documentRef.getElementById(EDITOR_SHELL_IDS.editorSystemActions);
+  const composerActions = documentRef.getElementById(EDITOR_SHELL_IDS.editorModalComposerActions);
+  const themeActions = documentRef.getElementById(EDITOR_SHELL_IDS.editorModalThemeActions);
+  const updateActions = documentRef.getElementById(EDITOR_SHELL_IDS.editorModalUpdateActions);
+  const syncActions = documentRef.getElementById(EDITOR_SHELL_IDS.editorModalSyncActions);
+  const composerPanel = documentRef.getElementById(EDITOR_SHELL_IDS.modeComposer);
+  const themesPanel = documentRef.getElementById(EDITOR_SHELL_IDS.modeThemes);
+  const updatesPanel = documentRef.getElementById(EDITOR_SHELL_IDS.modeUpdates);
+  const syncPanel = documentRef.getElementById(EDITOR_SHELL_IDS.modeSync);
+  if (!panel) return;
+
+  setEditorSystemPanelVisible(true);
+  if (kicker) kicker.textContent = treeText('system', 'System');
+  if (title) {
+    title.textContent = nextMode === 'sync'
+      ? treeText('sync', 'Publish')
+      : (nextMode === 'updates'
+        ? treeText('pressUpdates', 'Press Updates')
+        : (nextMode === 'themes'
+          ? treeText('themes', 'Themes')
+          : treeText('siteSettings', 'Site Settings')));
+  }
+  if (meta) {
+    meta.textContent = nextMode === 'sync'
+      ? treeText('syncMeta', 'Publish local changes to GitHub.')
+      : (nextMode === 'updates'
+        ? treeText('systemUpdatesMeta', 'Review and apply Press updates.')
+        : (nextMode === 'themes'
+          ? treeText('themesMeta', 'Theme packs.')
+          : treeText('siteSettingsMeta', 'Edit site.yaml settings.')));
+  }
+
+  if (actions) {
+    [
+      ['composer', composerActions],
+      ['themes', themeActions],
+      ['updates', updateActions],
+      ['sync', syncActions]
+    ].forEach(([key, actionSet]) => {
+      if (!actionSet) return;
+      if (actionSet.parentElement !== actions) actions.appendChild(actionSet);
+      const active = key === nextMode;
+      actionSet.hidden = !active;
+      actionSet.setAttribute('aria-hidden', active ? 'false' : 'true');
+    });
+  }
+
+  [
+    ['composer', composerPanel],
+    ['themes', themesPanel],
+    ['updates', updatesPanel],
+    ['sync', syncPanel]
+  ].forEach(([key, modePanel]) => {
+    const active = key === nextMode;
+    if (!modePanel) return;
+    modePanel.hidden = !active;
+    modePanel.setAttribute('aria-hidden', active ? 'false' : 'true');
+    modePanel.style.display = active ? '' : 'none';
+  });
+
+  if (nextMode === 'composer') {
+    try {
+      if (getActiveComposerFile() !== 'site') applyComposerFile('site', { force: true, immediate: true });
+    } catch (_) {}
+    resetSiteSettingsNavOnOpen();
+  } else if (nextMode === 'sync') {
+    refreshSyncCommitPanel();
+  }
+  animatePanel();
+}

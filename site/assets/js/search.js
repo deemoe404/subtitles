@@ -1,0 +1,56 @@
+import { getThemeRegion } from './theme-regions.js?v=press-system-v3.4.125';
+
+const SEARCH_BOUND = Symbol('pressSearchBound');
+const SEARCH_EVENTS_BOUND = Symbol('pressSearchEventsBound');
+
+function markSearchEventsBound(root) {
+  try {
+    if (root[SEARCH_EVENTS_BOUND]) return false;
+    root[SEARCH_EVENTS_BOUND] = true;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+export function navigateSearch(query) {
+  const q = String(query || '').trim();
+  const url = new URL(window.location.href);
+  if (q) {
+    url.searchParams.set('tab', 'search');
+    url.searchParams.set('q', q);
+    url.searchParams.delete('tag');
+    url.searchParams.delete('id');
+    url.searchParams.delete('page');
+  } else {
+    url.searchParams.set('tab', 'posts');
+    url.searchParams.delete('q');
+    url.searchParams.delete('tag');
+    url.searchParams.delete('id');
+    url.searchParams.delete('page');
+  }
+  history.pushState({}, '', url.toString());
+  window.dispatchEvent(new PopStateEvent('popstate'));
+}
+
+export function bindSearchEvents(root = document) {
+  if (!root || typeof root.addEventListener !== 'function' || !markSearchEventsBound(root)) return;
+  root.addEventListener('press:search', (event) => {
+    const detail = event && event.detail ? event.detail : {};
+    navigateSearch(detail.query || '');
+  });
+}
+
+export function setupSearch() {
+  bindSearchEvents(document);
+
+  const search = getThemeRegion('search');
+  const input = search && search.matches && search.matches('input')
+    ? search
+    : ((search && search.input) || (search && search.querySelector && search.querySelector('input[type="search"]')));
+  if (!input || input.closest('press-search') || input[SEARCH_BOUND]) return;
+  input[SEARCH_BOUND] = true;
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') navigateSearch(input.value);
+  });
+}

@@ -1,0 +1,4 @@
+[
+  { "value": "en", "label": "English", "module": "./en.js?v=press-system-v3.4.125" },
+  { "value": "chs", "label": "简体中文", "module": "./chs.js?v=press-system-v3.4.125" }
+]
