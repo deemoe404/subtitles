@@ -21,12 +21,12 @@ jobs:
 
     env:
       RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag_name }}
-      SUBTITLES_CODESIGN_IDENTITY: "-"
-      SUBTITLES_BUNDLE_IDENTIFIER: local.Subtitles.AppStore
-      SUBTITLES_DISTRIBUTION_CHANNEL: appstore
-      SUBTITLES_APP_NAME: One More Cap
-      SUBTITLES_APP_BUNDLE_NAME: One More Cap-AppStore
-      SUBTITLES_APP_EXECUTABLE_NAME: One More Cap
+      ONEMORECAP_CODESIGN_IDENTITY: "-"
+      ONEMORECAP_BUNDLE_IDENTIFIER: local.OneMoreCap.AppStore
+      ONEMORECAP_DISTRIBUTION_CHANNEL: appstore
+      ONEMORECAP_APP_NAME: One More Cap
+      ONEMORECAP_APP_BUNDLE_NAME: One More Cap-AppStore
+      ONEMORECAP_APP_EXECUTABLE_NAME: One More Cap
 
     steps:
       - name: Checkout release tag
@@ -52,15 +52,15 @@ jobs:
             exit 1
           fi
 
-          echo "SUBTITLES_BUNDLE_SHORT_VERSION=$version" >>"$GITHUB_ENV"
-          echo "SUBTITLES_BUNDLE_VERSION=${GITHUB_RUN_NUMBER}" >>"$GITHUB_ENV"
+          echo "ONEMORECAP_BUNDLE_SHORT_VERSION=$version" >>"$GITHUB_ENV"
+          echo "ONEMORECAP_BUNDLE_VERSION=${GITHUB_RUN_NUMBER}" >>"$GITHUB_ENV"
 
       - name: Package App Store channel zip
         id: package_appstore
         run: |
           safe_tag="${RELEASE_TAG//\//-}"
           app_path="$(
-            env -u SUBTITLES_SPARKLE_FEED_URL -u SUBTITLES_SPARKLE_PUBLIC_ED_KEY \
+            env -u ONEMORECAP_SPARKLE_FEED_URL -u ONEMORECAP_SPARKLE_PUBLIC_ED_KEY \
             scripts/package-app.sh | tail -n 1
           )"
           # Keep artifact filenames URL-safe; GitHub normalizes spaces in release asset URLs.
@@ -86,14 +86,14 @@ jobs:
 
     env:
       RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag_name }}
-      SUBTITLES_CODESIGN_IDENTITY: "-"
-      SUBTITLES_BUNDLE_IDENTIFIER: local.Subtitles
-      SUBTITLES_DISTRIBUTION_CHANNEL: github
-      SUBTITLES_APP_NAME: One More Cap
-      SUBTITLES_APP_BUNDLE_NAME: One More Cap
-      SUBTITLES_APP_EXECUTABLE_NAME: One More Cap
-      SUBTITLES_SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SUBTITLES_SPARKLE_PUBLIC_ED_KEY }}
-      SUBTITLES_SPARKLE_PRIVATE_KEY: ${{ secrets.SUBTITLES_SPARKLE_PRIVATE_KEY }}
+      ONEMORECAP_CODESIGN_IDENTITY: "-"
+      ONEMORECAP_BUNDLE_IDENTIFIER: local.OneMoreCap
+      ONEMORECAP_DISTRIBUTION_CHANNEL: github
+      ONEMORECAP_APP_NAME: One More Cap
+      ONEMORECAP_APP_BUNDLE_NAME: One More Cap
+      ONEMORECAP_APP_EXECUTABLE_NAME: One More Cap
+      ONEMORECAP_SPARKLE_PUBLIC_ED_KEY: ${{ secrets.ONEMORECAP_SPARKLE_PUBLIC_ED_KEY }}
+      ONEMORECAP_SPARKLE_PRIVATE_KEY: ${{ secrets.ONEMORECAP_SPARKLE_PRIVATE_KEY }}
 
     steps:
       - name: Checkout release tag
@@ -120,20 +120,20 @@ jobs:
             exit 1
           fi
 
-          echo "SUBTITLES_BUNDLE_SHORT_VERSION=$version" >>"$GITHUB_ENV"
-          echo "SUBTITLES_BUNDLE_VERSION=${GITHUB_RUN_NUMBER}" >>"$GITHUB_ENV"
+          echo "ONEMORECAP_BUNDLE_SHORT_VERSION=$version" >>"$GITHUB_ENV"
+          echo "ONEMORECAP_BUNDLE_VERSION=${GITHUB_RUN_NUMBER}" >>"$GITHUB_ENV"
 
-          if [[ -z "${SUBTITLES_SPARKLE_PUBLIC_ED_KEY:-}" ]]; then
-            echo "::error::Release builds require SUBTITLES_SPARKLE_PUBLIC_ED_KEY secret"
+          if [[ -z "${ONEMORECAP_SPARKLE_PUBLIC_ED_KEY:-}" ]]; then
+            echo "::error::Release builds require ONEMORECAP_SPARKLE_PUBLIC_ED_KEY secret"
             exit 1
           fi
 
-          if [[ -z "${SUBTITLES_SPARKLE_PRIVATE_KEY:-}" ]]; then
-            echo "::error::Release builds require SUBTITLES_SPARKLE_PRIVATE_KEY secret"
+          if [[ -z "${ONEMORECAP_SPARKLE_PRIVATE_KEY:-}" ]]; then
+            echo "::error::Release builds require ONEMORECAP_SPARKLE_PRIVATE_KEY secret"
             exit 1
           fi
 
-          echo "SUBTITLES_SPARKLE_FEED_URL=https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/appcast.xml" >>"$GITHUB_ENV"
+          echo "ONEMORECAP_SPARKLE_FEED_URL=https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/appcast.xml" >>"$GITHUB_ENV"
           echo "sparkle_enabled=true" >>"$GITHUB_OUTPUT"
 
       - name: Run checks
@@ -142,7 +142,7 @@ jobs:
       - name: Package app zip
         id: package
         run: |
-          app_path="$(SUBTITLES_DISTRIBUTION_CHANNEL=github scripts/package-app.sh | tail -n 1)"
+          app_path="$(ONEMORECAP_DISTRIBUTION_CHANNEL=github scripts/package-app.sh | tail -n 1)"
           safe_tag="${RELEASE_TAG//\//-}"
           # Keep artifact filenames URL-safe; Sparkle appcasts use this basename as the download URL.
           asset_name="OneMoreCap-${safe_tag}-macOS.zip"
@@ -165,7 +165,7 @@ jobs:
           gh release view "$RELEASE_TAG" --json body --jq '.body // ""' >"$notes_path"
 
           appcast_path="$(
-            SUBTITLES_SPARKLE_FULL_RELEASE_NOTES_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}" \
+            ONEMORECAP_SPARKLE_FULL_RELEASE_NOTES_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}" \
               scripts/create-appcast.sh "$ASSET_PATH" "$notes_path" | tail -n 1
           )"
 

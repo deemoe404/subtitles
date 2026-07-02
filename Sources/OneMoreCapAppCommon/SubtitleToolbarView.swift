@@ -1,7 +1,7 @@
 @preconcurrency import Cocoa
 import Combine
 import SwiftUI
-import SubtitlesAppSupport
+import OneMoreCapAppSupport
 
 protocol SubtitleToolbarViewDelegate: AnyObject {
     func subtitleToolbarViewDidEnter(_ view: SubtitleToolbarView)

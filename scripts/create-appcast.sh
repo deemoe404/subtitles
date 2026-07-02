@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/env.sh
 source "$ROOT_DIR/scripts/env.sh"
-load_subtitles_env "$ROOT_DIR"
+load_onemorecap_env "$ROOT_DIR"
 
 if [[ $# -lt 1 || $# -gt 2 ]]; then
     echo "Usage: scripts/create-appcast.sh <update-archive.zip> [release-notes.md]" >&2
@@ -13,15 +13,15 @@ fi
 
 ARCHIVE_PATH="$1"
 RELEASE_NOTES_PATH="${2:-}"
-SPARKLE_PRIVATE_KEY="${SUBTITLES_SPARKLE_PRIVATE_KEY:-}"
-SPARKLE_PRIVATE_KEY_FILE="${SUBTITLES_SPARKLE_PRIVATE_KEY_FILE:-}"
-SPARKLE_KEY_ACCOUNT="${SUBTITLES_SPARKLE_KEY_ACCOUNT:-subtitles}"
-OUTPUT_DIR="${SUBTITLES_SPARKLE_APPCAST_DIR:-$ROOT_DIR/dist/sparkle-feed}"
-OUTPUT_PATH="${SUBTITLES_SPARKLE_APPCAST_PATH:-$OUTPUT_DIR/appcast.xml}"
+SPARKLE_PRIVATE_KEY="${ONEMORECAP_SPARKLE_PRIVATE_KEY:-}"
+SPARKLE_PRIVATE_KEY_FILE="${ONEMORECAP_SPARKLE_PRIVATE_KEY_FILE:-}"
+SPARKLE_KEY_ACCOUNT="${ONEMORECAP_SPARKLE_KEY_ACCOUNT:-onemorecap}"
+OUTPUT_DIR="${ONEMORECAP_SPARKLE_APPCAST_DIR:-$ROOT_DIR/dist/sparkle-feed}"
+OUTPUT_PATH="${ONEMORECAP_SPARKLE_APPCAST_PATH:-$OUTPUT_DIR/appcast.xml}"
 REPOSITORY="${GITHUB_REPOSITORY:-deemoe404/onemorecap}"
 RELEASE_TAG="${RELEASE_TAG:-${GITHUB_REF_NAME:-}}"
-DOWNLOAD_URL_PREFIX="${SUBTITLES_SPARKLE_DOWNLOAD_URL_PREFIX:-}"
-FULL_RELEASE_NOTES_URL="${SUBTITLES_SPARKLE_FULL_RELEASE_NOTES_URL:-}"
+DOWNLOAD_URL_PREFIX="${ONEMORECAP_SPARKLE_DOWNLOAD_URL_PREFIX:-}"
+FULL_RELEASE_NOTES_URL="${ONEMORECAP_SPARKLE_FULL_RELEASE_NOTES_URL:-}"
 
 if [[ ! -f "$ARCHIVE_PATH" ]]; then
     echo "Update archive does not exist: $ARCHIVE_PATH" >&2
@@ -35,7 +35,7 @@ fi
 
 if [[ -z "$DOWNLOAD_URL_PREFIX" ]]; then
     if [[ -z "$RELEASE_TAG" ]]; then
-        echo "RELEASE_TAG or SUBTITLES_SPARKLE_DOWNLOAD_URL_PREFIX is required" >&2
+        echo "RELEASE_TAG or ONEMORECAP_SPARKLE_DOWNLOAD_URL_PREFIX is required" >&2
         exit 1
     fi
     DOWNLOAD_URL_PREFIX="https://github.com/$REPOSITORY/releases/download/$RELEASE_TAG/"
@@ -81,7 +81,7 @@ fi
 
 if [[ -n "$SPARKLE_PRIVATE_KEY" || -n "$SPARKLE_PRIVATE_KEY_FILE" ]] && ! grep -q 'sparkle:edSignature=' "$OUTPUT_PATH"; then
     echo "Sparkle appcast was generated without an EdDSA signature." >&2
-    echo "Check that SUBTITLES_SPARKLE_PUBLIC_ED_KEY matches the private key used for signing." >&2
+    echo "Check that ONEMORECAP_SPARKLE_PUBLIC_ED_KEY matches the private key used for signing." >&2
     exit 1
 fi
 

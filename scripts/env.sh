@@ -1,34 +1,36 @@
 #!/usr/bin/env bash
 
-load_subtitles_env() {
+load_onemorecap_env() {
     local root_dir="$1"
     local env_file="$root_dir/.env.local"
     local preserved_vars=(
         DEVELOPER_DIR
-        SUBTITLES_BUNDLE_IDENTIFIER
-        SUBTITLES_BUNDLE_SHORT_VERSION
-        SUBTITLES_BUNDLE_VERSION
-        SUBTITLES_MINIMUM_SYSTEM_VERSION
-        SUBTITLES_DISTRIBUTION_CHANNEL
-        SUBTITLES_CODESIGN_IDENTITY
-        SUBTITLES_CODESIGN_HARDENED_RUNTIME
-        SUBTITLES_CODESIGN_ENTITLEMENTS
-        SUBTITLES_APP_NAME
-        SUBTITLES_APP_BUNDLE_NAME
-        SUBTITLES_APP_EXECUTABLE_NAME
-        SUBTITLES_STATUS_ITEM_TITLE
-        SUBTITLES_SPARKLE_VERSION
-        SUBTITLES_SPARKLE_URL
-        SUBTITLES_SPARKLE_ZIP_CHECKSUM
-        SUBTITLES_SPARKLE_FEED_URL
-        SUBTITLES_SPARKLE_PUBLIC_ED_KEY
-        SUBTITLES_SPARKLE_PRIVATE_KEY
-        SUBTITLES_SPARKLE_PRIVATE_KEY_FILE
-        SUBTITLES_SPARKLE_KEY_ACCOUNT
-        SUBTITLES_SPARKLE_APPCAST_DIR
-        SUBTITLES_SPARKLE_APPCAST_PATH
-        SUBTITLES_SPARKLE_DOWNLOAD_URL_PREFIX
-        SUBTITLES_SPARKLE_FULL_RELEASE_NOTES_URL
+        ONEMORECAP_BUNDLE_IDENTIFIER
+        ONEMORECAP_BUNDLE_SHORT_VERSION
+        ONEMORECAP_BUNDLE_VERSION
+        ONEMORECAP_MINIMUM_SYSTEM_VERSION
+        ONEMORECAP_DISTRIBUTION_CHANNEL
+        ONEMORECAP_CODESIGN_IDENTITY
+        ONEMORECAP_CODESIGN_HARDENED_RUNTIME
+        ONEMORECAP_CODESIGN_ENTITLEMENTS
+        ONEMORECAP_APP_NAME
+        ONEMORECAP_APP_BUNDLE_NAME
+        ONEMORECAP_APP_EXECUTABLE_NAME
+        ONEMORECAP_STATUS_ITEM_TITLE
+        ONEMORECAP_APP_ICON_SOURCE
+        ONEMORECAP_MENU_BAR_ICON_SOURCE_DIR
+        ONEMORECAP_SPARKLE_VERSION
+        ONEMORECAP_SPARKLE_URL
+        ONEMORECAP_SPARKLE_ZIP_CHECKSUM
+        ONEMORECAP_SPARKLE_FEED_URL
+        ONEMORECAP_SPARKLE_PUBLIC_ED_KEY
+        ONEMORECAP_SPARKLE_PRIVATE_KEY
+        ONEMORECAP_SPARKLE_PRIVATE_KEY_FILE
+        ONEMORECAP_SPARKLE_KEY_ACCOUNT
+        ONEMORECAP_SPARKLE_APPCAST_DIR
+        ONEMORECAP_SPARKLE_APPCAST_PATH
+        ONEMORECAP_SPARKLE_DOWNLOAD_URL_PREFIX
+        ONEMORECAP_SPARKLE_FULL_RELEASE_NOTES_URL
     )
     local var
     local had_var
@@ -37,10 +39,10 @@ load_subtitles_env() {
     if [[ -f "$env_file" ]]; then
         for var in "${preserved_vars[@]}"; do
             if [[ -n "${!var+x}" ]]; then
-                printf -v "subtitles_env_had_$var" '%s' 1
-                printf -v "subtitles_env_value_$var" '%s' "${!var}"
+                printf -v "onemorecap_env_had_$var" '%s' 1
+                printf -v "onemorecap_env_value_$var" '%s' "${!var}"
             else
-                printf -v "subtitles_env_had_$var" '%s' 0
+                printf -v "onemorecap_env_had_$var" '%s' 0
             fi
         done
 
@@ -50,8 +52,8 @@ load_subtitles_env() {
         set +a
 
         for var in "${preserved_vars[@]}"; do
-            had_var="subtitles_env_had_$var"
-            value="subtitles_env_value_$var"
+            had_var="onemorecap_env_had_$var"
+            value="onemorecap_env_value_$var"
             if [[ "${!had_var}" == "1" ]]; then
                 export "$var=${!value}"
             fi

@@ -1,6 +1,6 @@
 @preconcurrency import Cocoa
 import SwiftUI
-import SubtitlesAppSupport
+import OneMoreCapAppSupport
 
 protocol SubtitleOverlayViewDelegate: AnyObject {
     func subtitleOverlayViewDidEnterInteractiveArea(_ view: SubtitleOverlayView)

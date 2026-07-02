@@ -26,17 +26,17 @@ it automatically. Set `DEVELOPER_DIR` to override that behavior.
 mise exec -- scripts/check.sh
 mise exec -- scripts/run.sh
 mise exec -- scripts/package-app.sh
-SUBTITLES_DISTRIBUTION_CHANNEL=appstore mise exec -- scripts/package-app.sh
+ONEMORECAP_DISTRIBUTION_CHANNEL=appstore mise exec -- scripts/package-app.sh
 ```
 
 The default packaged app is the GitHub/full channel and is written to
-`build/One More Cap.app`. Set `SUBTITLES_DISTRIBUTION_CHANNEL=appstore` to
+`build/One More Cap.app`. Set `ONEMORECAP_DISTRIBUTION_CHANNEL=appstore` to
 package the App Store channel.
 
 `scripts/check.sh` prepares Sparkle for the GitHub/full channel, then builds and
 packages both channels. GitHub/full packaging also prepares Sparkle. The App
 Store channel uses a Sparkle-free SwiftPM manifest and does not require
-`Vendor/Sparkle`. If you run raw `swift build --product SubtitlesApp` or
+`Vendor/Sparkle`. If you run raw `swift build --product OneMoreCapApp` or
 `swift run` commands in a fresh checkout, run this first:
 
 ```sh
@@ -47,11 +47,11 @@ mise exec -- scripts/prepare-sparkle.sh
 
 The package has two app products:
 
-- `SubtitlesApp`: GitHub/full channel. Includes QuickTime sync, Apple TV sync through Accessibility, and Sparkle updates.
-- `SubtitlesAppStore`: App Store channel. Includes QuickTime read-only sync only and does not link Sparkle or the Apple TV Accessibility target.
+- `OneMoreCapApp`: GitHub/full channel. Includes QuickTime sync, Apple TV sync through Accessibility, and Sparkle updates.
+- `OneMoreCapAppStore`: App Store channel. Includes QuickTime read-only sync only and does not link Sparkle or the Apple TV Accessibility target.
 
 `scripts/package-app.sh` maps channels to fixed products: `github` selects
-`SubtitlesApp`, and `appstore` selects `SubtitlesAppStore`. The product is not
+`OneMoreCapApp`, and `appstore` selects `OneMoreCapAppStore`. The product is not
 overridable by environment because that would weaken the App Store channel
 boundary.
 
@@ -64,15 +64,15 @@ For personal signed builds, put local-only overrides in `.env.local`. That file
 is ignored by git; `.env.local.example` documents the supported variables:
 
 ```sh
-SUBTITLES_CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)"
-SUBTITLES_BUNDLE_IDENTIFIER="com.example.one-more-cap"
+ONEMORECAP_CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)"
+ONEMORECAP_BUNDLE_IDENTIFIER="com.example.one-more-cap"
 ```
 
 The same values can also be supplied as environment variables for one-off
 builds.
 
-The App Store channel automatically uses `Subtitles.entitlements` when no custom
-`SUBTITLES_CODESIGN_ENTITLEMENTS` value is set. That entitlement file enables
+The App Store channel automatically uses `OneMoreCap.entitlements` when no custom
+`ONEMORECAP_CODESIGN_ENTITLEMENTS` value is set. That entitlement file enables
 App Sandbox, user-selected subtitle file read access, and Apple Events access to
 QuickTime Player.
 
@@ -84,8 +84,8 @@ and automatic update checks. Sparkle is downloaded into the ignored
 framework is not committed to git. The App Store channel does not link Sparkle
 and does not show the update menu item.
 
-Development builds without `SUBTITLES_SPARKLE_FEED_URL` and
-`SUBTITLES_SPARKLE_PUBLIC_ED_KEY` still build and run, but the `Check for
+Development builds without `ONEMORECAP_SPARKLE_FEED_URL` and
+`ONEMORECAP_SPARKLE_PUBLIC_ED_KEY` still build and run, but the `Check for
 Updates...` menu item reports that updates are not configured for that build.
 
 Generate or inspect the Sparkle EdDSA key with:
@@ -93,18 +93,18 @@ Generate or inspect the Sparkle EdDSA key with:
 ```sh
 mise exec -- scripts/generate-sparkle-keys.sh
 mise exec -- scripts/generate-sparkle-keys.sh -p
-mise exec -- scripts/generate-sparkle-keys.sh -x /tmp/subtitles-sparkle-private-key
+mise exec -- scripts/generate-sparkle-keys.sh -x /tmp/onemorecap-sparkle-private-key
 ```
 
 For GitHub Release appcasts, set these repository secrets:
 
 ```sh
-SUBTITLES_SPARKLE_PUBLIC_ED_KEY
-SUBTITLES_SPARKLE_PRIVATE_KEY
+ONEMORECAP_SPARKLE_PUBLIC_ED_KEY
+ONEMORECAP_SPARKLE_PRIVATE_KEY
 ```
 
-`SUBTITLES_SPARKLE_PUBLIC_ED_KEY` is the public key printed by
-`generate-sparkle-keys.sh -p`. `SUBTITLES_SPARKLE_PRIVATE_KEY` is the exact
+`ONEMORECAP_SPARKLE_PUBLIC_ED_KEY` is the public key printed by
+`generate-sparkle-keys.sh -p`. `ONEMORECAP_SPARKLE_PRIVATE_KEY` is the exact
 contents of the private key file exported with `-x`; do not commit that file.
 
 Release builds require both secrets. The release workflow embeds the public key
@@ -115,15 +115,15 @@ release asset. The app feed URL is:
 https://github.com/deemoe404/onemorecap/releases/latest/download/appcast.xml
 ```
 
-If the app is renamed later, keep `SUBTITLES_BUNDLE_IDENTIFIER`, the Sparkle
-public/private key pair, and the feed URL stable. `SUBTITLES_APP_NAME`,
-`SUBTITLES_APP_BUNDLE_NAME`, `SUBTITLES_APP_EXECUTABLE_NAME`, and
-`SUBTITLES_STATUS_ITEM_TITLE` can change for display and packaging purposes.
+If the app is renamed later, keep `ONEMORECAP_BUNDLE_IDENTIFIER`, the Sparkle
+public/private key pair, and the feed URL stable. `ONEMORECAP_APP_NAME`,
+`ONEMORECAP_APP_BUNDLE_NAME`, `ONEMORECAP_APP_EXECUTABLE_NAME`, and
+`ONEMORECAP_STATUS_ITEM_TITLE` can change for display and packaging purposes.
 
 ## Release Automation
 
 GitHub Actions runs `scripts/check.sh` on pushes and pull requests to `main`.
-That check builds both `SubtitlesApp` and `SubtitlesAppStore`, then verifies that
+That check builds both `OneMoreCapApp` and `OneMoreCapAppStore`, then verifies that
 the GitHub/full package includes Sparkle and the App Store package does not.
 
 When a GitHub Release is published, the release workflow builds the tagged

@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import SubtitlesAppSupport
+@testable import OneMoreCapAppSupport
 
 final class SystemCaptionAppearanceTests: XCTestCase {
     func testColorCombinesSourceAlphaAndOpacity() {

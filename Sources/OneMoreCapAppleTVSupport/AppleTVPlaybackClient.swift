@@ -1,7 +1,7 @@
 import AppKit
 import ApplicationServices
 import Foundation
-import SubtitlesAppSupport
+import OneMoreCapAppSupport
 
 public extension ExternalPlaybackTarget {
     static let appleTV = ExternalPlaybackTarget(

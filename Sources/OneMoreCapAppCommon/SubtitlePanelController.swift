@@ -1,7 +1,7 @@
 @preconcurrency import Cocoa
 import QuartzCore
 import SubtitleCore
-import SubtitlesAppSupport
+import OneMoreCapAppSupport
 
 protocol SubtitlePanelControllerDelegate: AnyObject {
     func subtitlePanel(_ panelController: SubtitlePanelController, didAdjustOffsetBy delta: TimeInterval)

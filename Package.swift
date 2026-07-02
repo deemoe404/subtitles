@@ -6,7 +6,7 @@ let swiftSettings: [SwiftSetting] = [
     .swiftLanguageMode(.v5)
 ]
 
-let distributionChannel = Context.environment["SUBTITLES_DISTRIBUTION_CHANNEL"]?.lowercased()
+let distributionChannel = Context.environment["ONEMORECAP_DISTRIBUTION_CHANNEL"]?.lowercased()
 let isAppStoreOnlyManifest = distributionChannel == "appstore"
 
 var products: [Product] = [
@@ -19,16 +19,16 @@ var products: [Product] = [
 if !isAppStoreOnlyManifest {
     products.append(
         .executable(
-            name: "SubtitlesApp",
-            targets: ["SubtitlesApp"]
+            name: "OneMoreCapApp",
+            targets: ["OneMoreCapApp"]
         )
     )
 }
 
 products.append(
     .executable(
-        name: "SubtitlesAppStore",
-        targets: ["SubtitlesAppStore"]
+        name: "OneMoreCapAppStore",
+        targets: ["OneMoreCapAppStore"]
     )
 )
 products.append(
@@ -44,7 +44,7 @@ var targets: [Target] = [
         swiftSettings: swiftSettings
     ),
     .target(
-        name: "SubtitlesAppSupport",
+        name: "OneMoreCapAppSupport",
         dependencies: ["SubtitleCore"],
         swiftSettings: swiftSettings,
         linkerSettings: [
@@ -52,18 +52,18 @@ var targets: [Target] = [
         ]
     ),
     .target(
-        name: "SubtitlesAppCommon",
+        name: "OneMoreCapAppCommon",
         dependencies: [
             "SubtitleCore",
-            "SubtitlesAppSupport"
+            "OneMoreCapAppSupport"
         ],
         swiftSettings: swiftSettings
     ),
     .executableTarget(
-        name: "SubtitlesAppStore",
+        name: "OneMoreCapAppStore",
         dependencies: [
-            "SubtitlesAppSupport",
-            "SubtitlesAppCommon"
+            "OneMoreCapAppSupport",
+            "OneMoreCapAppCommon"
         ],
         swiftSettings: swiftSettings
     ),
@@ -82,8 +82,8 @@ var targets: [Target] = [
 if isAppStoreOnlyManifest {
     targets.append(
         .testTarget(
-            name: "SubtitlesAppSupportTests",
-            dependencies: ["SubtitlesAppSupport"],
+            name: "OneMoreCapAppSupportTests",
+            dependencies: ["OneMoreCapAppSupport"],
             exclude: ["AppleTVPlaybackTests.swift"],
             swiftSettings: swiftSettings
         )
@@ -95,25 +95,25 @@ if isAppStoreOnlyManifest {
             path: "Vendor/Sparkle/Sparkle.xcframework"
         ),
         .target(
-            name: "SubtitlesAppleTVSupport",
-            dependencies: ["SubtitlesAppSupport"],
+            name: "OneMoreCapAppleTVSupport",
+            dependencies: ["OneMoreCapAppSupport"],
             swiftSettings: swiftSettings
         ),
         .target(
-            name: "SubtitlesGitHubSupport",
+            name: "OneMoreCapGitHubSupport",
             dependencies: [
-                "SubtitlesAppCommon",
+                "OneMoreCapAppCommon",
                 "Sparkle"
             ],
             swiftSettings: swiftSettings
         ),
         .executableTarget(
-            name: "SubtitlesApp",
+            name: "OneMoreCapApp",
             dependencies: [
-                "SubtitlesAppSupport",
-                "SubtitlesAppleTVSupport",
-                "SubtitlesAppCommon",
-                "SubtitlesGitHubSupport"
+                "OneMoreCapAppSupport",
+                "OneMoreCapAppleTVSupport",
+                "OneMoreCapAppCommon",
+                "OneMoreCapGitHubSupport"
             ],
             swiftSettings: swiftSettings,
             linkerSettings: [
@@ -124,18 +124,19 @@ if isAppStoreOnlyManifest {
             ]
         ),
         .testTarget(
-            name: "SubtitlesAppSupportTests",
+            name: "OneMoreCapAppSupportTests",
             dependencies: [
-                "SubtitlesAppSupport",
-                "SubtitlesAppleTVSupport"
+                "OneMoreCapAppSupport",
+                "OneMoreCapAppleTVSupport"
             ],
             swiftSettings: swiftSettings
         ),
         .testTarget(
-            name: "SubtitlesAppCommonTests",
+            name: "OneMoreCapAppCommonTests",
             dependencies: [
-                "SubtitlesAppCommon",
-                "SubtitlesAppleTVSupport"
+                "OneMoreCapAppCommon",
+                "OneMoreCapAppSupport",
+                "OneMoreCapAppleTVSupport"
             ],
             swiftSettings: swiftSettings
         )
@@ -143,7 +144,7 @@ if isAppStoreOnlyManifest {
 }
 
 let package = Package(
-    name: "Subtitles",
+    name: "OneMoreCap",
     platforms: [
         .macOS("26.0")
     ],

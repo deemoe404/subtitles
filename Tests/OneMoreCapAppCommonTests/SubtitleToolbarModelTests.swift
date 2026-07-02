@@ -1,7 +1,7 @@
 import XCTest
-@testable import SubtitlesAppCommon
-import SubtitlesAppleTVSupport
-import SubtitlesAppSupport
+@testable import OneMoreCapAppCommon
+import OneMoreCapAppleTVSupport
+import OneMoreCapAppSupport
 
 final class SubtitleToolbarModelTests: XCTestCase {
     func testDefaultTargetSelectsAppleTVForFullChannel() {

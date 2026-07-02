@@ -1,5 +1,5 @@
 import XCTest
-@testable import SubtitlesAppSupport
+@testable import OneMoreCapAppSupport
 
 final class PlaybackSyncCoordinatorTests: XCTestCase {
     func testUsesManualClockByDefault() {

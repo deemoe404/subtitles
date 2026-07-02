@@ -1,8 +1,8 @@
-import SubtitlesAppCommon
-import SubtitlesAppSupport
+import OneMoreCapAppCommon
+import OneMoreCapAppSupport
 
-runSubtitlesApp(
-    configuration: SubtitlesAppConfiguration(
+runOneMoreCapApp(
+    configuration: OneMoreCapAppConfiguration(
         playbackClients: [
             QuickTimePlaybackClient()
         ],

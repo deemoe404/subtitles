@@ -1,6 +1,6 @@
 import XCTest
-@testable import SubtitlesAppleTVSupport
-@testable import SubtitlesAppSupport
+@testable import OneMoreCapAppleTVSupport
+@testable import OneMoreCapAppSupport
 
 final class AppleTVPlaybackTests: XCTestCase {
     func testMapsPlaybackButtonDescriptionToActualState() {

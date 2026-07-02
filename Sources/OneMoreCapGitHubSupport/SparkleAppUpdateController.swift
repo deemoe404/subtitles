@@ -1,6 +1,6 @@
 import Cocoa
 import Sparkle
-import SubtitlesAppCommon
+import OneMoreCapAppCommon
 
 public final class SparkleAppUpdateController: AppUpdateControlling {
     private let updaterController: SPUStandardUpdaterController?

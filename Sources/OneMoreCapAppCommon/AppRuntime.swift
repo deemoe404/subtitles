@@ -1,5 +1,5 @@
 @preconcurrency import Cocoa
-import SubtitlesAppSupport
+import OneMoreCapAppSupport
 
 public protocol AppUpdateControlling: AnyObject {
     var onCanCheckForUpdatesChanged: (() -> Void)? { get set }
@@ -25,7 +25,7 @@ public final class NoopAppUpdateController: AppUpdateControlling {
     public func checkForUpdates() {}
 }
 
-public struct SubtitlesAppConfiguration {
+public struct OneMoreCapAppConfiguration {
     let playbackClients: [any ExternalPlaybackClient]
     let defaultPlaybackTargetID: String?
     let updateController: any AppUpdateControlling
@@ -58,7 +58,7 @@ public struct SubtitlesAppConfiguration {
 
 private var appDelegateRetainer: AppDelegate?
 
-public func runSubtitlesApp(configuration: SubtitlesAppConfiguration) {
+public func runOneMoreCapApp(configuration: OneMoreCapAppConfiguration) {
     let app = NSApplication.shared
     let delegate = AppDelegate(configuration: configuration)
     appDelegateRetainer = delegate

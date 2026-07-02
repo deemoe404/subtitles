@@ -1,10 +1,10 @@
-import SubtitlesAppleTVSupport
-import SubtitlesAppCommon
-import SubtitlesAppSupport
-import SubtitlesGitHubSupport
+import OneMoreCapAppleTVSupport
+import OneMoreCapAppCommon
+import OneMoreCapAppSupport
+import OneMoreCapGitHubSupport
 
-runSubtitlesApp(
-    configuration: SubtitlesAppConfiguration(
+runOneMoreCapApp(
+    configuration: OneMoreCapAppConfiguration(
         playbackClients: [
             QuickTimePlaybackClient(),
             AppleTVPlaybackClient()

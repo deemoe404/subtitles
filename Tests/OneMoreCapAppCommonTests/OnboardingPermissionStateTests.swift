@@ -1,5 +1,5 @@
 import XCTest
-@testable import SubtitlesAppCommon
+@testable import OneMoreCapAppCommon
 
 final class OnboardingPermissionStateTests: XCTestCase {
     func testAppStoreChecklistOnlyIncludesAutomation() {

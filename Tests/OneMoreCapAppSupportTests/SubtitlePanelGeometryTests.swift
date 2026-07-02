@@ -1,6 +1,6 @@
 import CoreGraphics
 import XCTest
-@testable import SubtitlesAppSupport
+@testable import OneMoreCapAppSupport
 
 final class SubtitlePanelGeometryTests: XCTestCase {
     private let screenFrame = CGRect(x: 0, y: 0, width: 1200, height: 800)

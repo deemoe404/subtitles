@@ -1,7 +1,7 @@
 @preconcurrency import Cocoa
 import CoreServices
 import SubtitleCore
-import SubtitlesAppSupport
+import OneMoreCapAppSupport
 import UniformTypeIdentifiers
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SubtitlePanelControllerDelegate {
@@ -104,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         }
     )
 
-    init(configuration: SubtitlesAppConfiguration) {
+    init(configuration: OneMoreCapAppConfiguration) {
         var clientsByID: [String: any ExternalPlaybackClient] = [:]
         var targets: [ExternalPlaybackTarget] = []
         for client in configuration.playbackClients where clientsByID[client.target.id] == nil {

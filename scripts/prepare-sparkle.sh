@@ -4,11 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/env.sh
 source "$ROOT_DIR/scripts/env.sh"
-load_subtitles_env "$ROOT_DIR"
+load_onemorecap_env "$ROOT_DIR"
 
-SPARKLE_VERSION="${SUBTITLES_SPARKLE_VERSION:-2.9.3}"
-SPARKLE_URL="${SUBTITLES_SPARKLE_URL:-https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-for-Swift-Package-Manager.zip}"
-SPARKLE_CHECKSUM="${SUBTITLES_SPARKLE_ZIP_CHECKSUM:-}"
+SPARKLE_VERSION="${ONEMORECAP_SPARKLE_VERSION:-2.9.3}"
+SPARKLE_URL="${ONEMORECAP_SPARKLE_URL:-https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-for-Swift-Package-Manager.zip}"
+SPARKLE_CHECKSUM="${ONEMORECAP_SPARKLE_ZIP_CHECKSUM:-}"
 
 if [[ -z "$SPARKLE_CHECKSUM" ]]; then
     case "$SPARKLE_VERSION" in
@@ -16,7 +16,7 @@ if [[ -z "$SPARKLE_CHECKSUM" ]]; then
             SPARKLE_CHECKSUM="3a5d7fd698acc39c122e75764ed3614b472b284cc483f32ae7006d86c513370c"
             ;;
         *)
-            echo "SUBTITLES_SPARKLE_ZIP_CHECKSUM is required for Sparkle $SPARKLE_VERSION" >&2
+            echo "ONEMORECAP_SPARKLE_ZIP_CHECKSUM is required for Sparkle $SPARKLE_VERSION" >&2
             exit 1
             ;;
     esac
