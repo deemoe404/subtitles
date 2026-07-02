@@ -112,7 +112,7 @@ and a stable feed URL in the app, generates `appcast.xml`, and uploads it as a
 release asset. The app feed URL is:
 
 ```text
-https://github.com/deemoe404/subtitles/releases/latest/download/appcast.xml
+https://github.com/deemoe404/onemoresub/releases/latest/download/appcast.xml
 ```
 
 If the app is renamed later, keep `SUBTITLES_BUNDLE_IDENTIFIER`, the Sparkle
