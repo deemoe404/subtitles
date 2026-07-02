@@ -8,6 +8,7 @@ load_onemorecap_env "$ROOT_DIR"
 APP_NAME="${ONEMORECAP_APP_NAME:-One More Cap}"
 APP_BUNDLE_NAME="${ONEMORECAP_APP_BUNDLE_NAME:-One More Cap}"
 APP_EXECUTABLE_NAME="${ONEMORECAP_APP_EXECUTABLE_NAME:-One More Cap}"
+STATUS_ITEM_TITLE="${ONEMORECAP_STATUS_ITEM_TITLE:-Cap}"
 
 assert_appstore_build_without_sparkle_vendor() {
     local sparkle_dir="$ROOT_DIR/Vendor/Sparkle"
@@ -63,8 +64,77 @@ assert_appstore_entitlements() {
     test -z "$quicktime_exception_extra"
 }
 
+assert_source_localizations() {
+    local strings_file
+
+    while IFS= read -r -d '' strings_file; do
+        plutil -lint "$strings_file"
+    done < <(find "$ROOT_DIR/Resources" -path "*.lproj/*.strings" -print0)
+}
+
+assert_app_localizations() {
+    local app_path="$1"
+    local distribution_channel="$2"
+    local locale
+    local display_name
+    local status_item_title
+    local apple_events_usage_description
+
+    test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDevelopmentRegion' "$app_path/Contents/Info.plist")" = "en"
+    test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleLocalizations:0' "$app_path/Contents/Info.plist")" = "en"
+    test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleLocalizations:1' "$app_path/Contents/Info.plist")" = "zh-Hans"
+
+    for locale in en zh-Hans; do
+        test -f "$app_path/Contents/Resources/$locale.lproj/Localizable.strings"
+        test -f "$app_path/Contents/Resources/$locale.lproj/InfoPlist.strings"
+        plutil -lint "$app_path/Contents/Resources/$locale.lproj/Localizable.strings"
+        plutil -lint "$app_path/Contents/Resources/$locale.lproj/InfoPlist.strings"
+
+        display_name="$(
+            /usr/libexec/PlistBuddy \
+                -c 'Print :CFBundleDisplayName' \
+                "$app_path/Contents/Resources/$locale.lproj/InfoPlist.strings"
+        )"
+        status_item_title="$(
+            /usr/libexec/PlistBuddy \
+                -c 'Print :SUBStatusItemTitle' \
+                "$app_path/Contents/Resources/$locale.lproj/InfoPlist.strings"
+        )"
+        apple_events_usage_description="$(
+            /usr/libexec/PlistBuddy \
+                -c 'Print :NSAppleEventsUsageDescription' \
+                "$app_path/Contents/Resources/$locale.lproj/InfoPlist.strings"
+        )"
+        test "$display_name" = "$APP_NAME"
+        test "$status_item_title" = "$STATUS_ITEM_TITLE"
+        test -n "$apple_events_usage_description"
+        [[ "$apple_events_usage_description" == *"$APP_NAME"* ]]
+
+        if [[ "$distribution_channel" == "appstore" ]]; then
+            ! /usr/libexec/PlistBuddy \
+                -c 'Print :onboarding.permission.apple_tv.title' \
+                "$app_path/Contents/Resources/$locale.lproj/Localizable.strings" \
+                >/dev/null 2>&1
+            ! /usr/libexec/PlistBuddy \
+                -c 'Print :onboarding.permission.apple_tv.detail' \
+                "$app_path/Contents/Resources/$locale.lproj/Localizable.strings" \
+                >/dev/null 2>&1
+        else
+            /usr/libexec/PlistBuddy \
+                -c 'Print :onboarding.permission.apple_tv.title' \
+                "$app_path/Contents/Resources/$locale.lproj/Localizable.strings" \
+                >/dev/null
+            /usr/libexec/PlistBuddy \
+                -c 'Print :onboarding.permission.apple_tv.detail' \
+                "$app_path/Contents/Resources/$locale.lproj/Localizable.strings" \
+                >/dev/null
+        fi
+    done
+}
+
 cd "$ROOT_DIR"
 "$ROOT_DIR/scripts/prepare-sparkle.sh" >/dev/null
+assert_source_localizations
 xcrun swift test
 xcrun swift build --product OneMoreCapApp
 ONEMORECAP_DISTRIBUTION_CHANNEL=appstore xcrun swift build --product OneMoreCapAppStore
@@ -99,6 +169,7 @@ test "$(plutil -extract CFBundleDisplayName raw -o - "$GITHUB_APP_PATH/Contents/
 test "$(plutil -extract CFBundleExecutable raw -o - "$GITHUB_APP_PATH/Contents/Info.plist")" = "$APP_EXECUTABLE_NAME"
 test "$(plutil -extract CFBundleIconName raw -o - "$GITHUB_APP_PATH/Contents/Info.plist")" = "AppIcon"
 test "$(plutil -extract SUBDistributionChannel raw -o - "$GITHUB_APP_PATH/Contents/Info.plist")" = "github"
+assert_app_localizations "$GITHUB_APP_PATH" github
 test -d "$GITHUB_APP_PATH/Contents/Frameworks/Sparkle.framework"
 test -f "$GITHUB_APP_PATH/Contents/Resources/ThirdPartyLicenses/Sparkle-LICENSE"
 otool -L "$GITHUB_APP_PATH/Contents/MacOS/$APP_EXECUTABLE_NAME" >/tmp/onemorecap-github-otool.txt
@@ -125,6 +196,7 @@ test "$(plutil -extract CFBundleDisplayName raw -o - "$APPSTORE_APP_PATH/Content
 test "$(plutil -extract CFBundleExecutable raw -o - "$APPSTORE_APP_PATH/Contents/Info.plist")" = "$APP_EXECUTABLE_NAME"
 test "$(plutil -extract CFBundleIconName raw -o - "$APPSTORE_APP_PATH/Contents/Info.plist")" = "AppIcon"
 test "$(plutil -extract SUBDistributionChannel raw -o - "$APPSTORE_APP_PATH/Contents/Info.plist")" = "appstore"
+assert_app_localizations "$APPSTORE_APP_PATH" appstore
 test ! -e "$APPSTORE_APP_PATH/Contents/Frameworks/Sparkle.framework"
 test ! -e "$APPSTORE_APP_PATH/Contents/Resources/ThirdPartyLicenses/Sparkle-LICENSE"
 test "$(plutil -extract NSAppleEventsUsageDescription raw -o - "$APPSTORE_APP_PATH/Contents/Info.plist")" = "$APP_NAME reads the current playback position from QuickTime Player when you use Sync."

@@ -25,6 +25,7 @@ CODESIGN_ENTITLEMENTS="${ONEMORECAP_CODESIGN_ENTITLEMENTS:-}"
 STATUS_ITEM_TITLE="${ONEMORECAP_STATUS_ITEM_TITLE:-Cap}"
 APP_ICON_SOURCE="${ONEMORECAP_APP_ICON_SOURCE:-$ROOT_DIR/Resources/AppIcon.icon}"
 MENU_BAR_ICON_SOURCE_DIR="${ONEMORECAP_MENU_BAR_ICON_SOURCE_DIR:-$ROOT_DIR/Resources}"
+LOCALIZATION_SOURCE_DIR="${ONEMORECAP_LOCALIZATION_SOURCE_DIR:-$ROOT_DIR/Resources}"
 SPARKLE_FEED_URL="${ONEMORECAP_SPARKLE_FEED_URL:-}"
 SPARKLE_PUBLIC_ED_KEY="${ONEMORECAP_SPARKLE_PUBLIC_ED_KEY:-}"
 SPARKLE_FRAMEWORK_SOURCE="$ROOT_DIR/Vendor/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
@@ -165,6 +166,59 @@ copy_menu_bar_icon_resources() {
     done
 }
 
+update_localized_info_plist_strings() {
+    local strings_file="$1"
+    local usage_description
+
+    plutil -convert xml1 "$strings_file"
+    plutil -replace CFBundleName -string "$APP_NAME" "$strings_file"
+    plutil -replace CFBundleDisplayName -string "$APP_NAME" "$strings_file"
+    plutil -replace SUBStatusItemTitle -string "$STATUS_ITEM_TITLE" "$strings_file"
+
+    usage_description="$(
+        /usr/libexec/PlistBuddy \
+            -c 'Print :NSAppleEventsUsageDescription' \
+            "$strings_file"
+    )"
+    usage_description="${usage_description//One More Cap/$APP_NAME}"
+    plutil -replace NSAppleEventsUsageDescription -string "$usage_description" "$strings_file"
+}
+
+prune_appstore_localizable_strings() {
+    local strings_file="$1"
+
+    plutil -convert xml1 "$strings_file"
+    /usr/libexec/PlistBuddy -c 'Delete :onboarding.permission.apple_tv.detail' "$strings_file" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c 'Delete :onboarding.permission.apple_tv.title' "$strings_file" 2>/dev/null || true
+}
+
+copy_localization_resources() {
+    local locale_dir
+    local locale_name
+    local copied_locale_dir
+    local found=0
+
+    for locale_dir in "$LOCALIZATION_SOURCE_DIR"/*.lproj; do
+        if [[ ! -d "$locale_dir" ]]; then
+            continue
+        fi
+
+        found=1
+        locale_name="$(basename "$locale_dir")"
+        copied_locale_dir="$RESOURCES_DIR/$locale_name"
+        /usr/bin/ditto "$locale_dir" "$copied_locale_dir"
+        update_localized_info_plist_strings "$copied_locale_dir/InfoPlist.strings"
+        if [[ "$DISTRIBUTION_CHANNEL" == "appstore" ]]; then
+            prune_appstore_localizable_strings "$copied_locale_dir/Localizable.strings"
+        fi
+    done
+
+    if [[ "$found" != "1" ]]; then
+        echo "Localization resources not found in: $LOCALIZATION_SOURCE_DIR" >&2
+        exit 1
+    fi
+}
+
 cd "$ROOT_DIR"
 if [[ "$INCLUDE_SPARKLE" == "1" ]]; then
     "$ROOT_DIR/scripts/prepare-sparkle.sh" >/dev/null
@@ -191,6 +245,7 @@ cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
 PLIST
 
 plutil -replace CFBundleDevelopmentRegion -string en "$CONTENTS_DIR/Info.plist"
+plutil -replace CFBundleLocalizations -json '["en","zh-Hans"]' "$CONTENTS_DIR/Info.plist"
 plutil -replace CFBundleExecutable -string "$APP_EXECUTABLE_NAME" "$CONTENTS_DIR/Info.plist"
 plutil -replace CFBundleIdentifier -string "$BUNDLE_IDENTIFIER" "$CONTENTS_DIR/Info.plist"
 plutil -replace CFBundleInfoDictionaryVersion -string "6.0" "$CONTENTS_DIR/Info.plist"
@@ -208,6 +263,7 @@ plutil -replace SUBStatusItemTitle -string "$STATUS_ITEM_TITLE" "$CONTENTS_DIR/I
 
 compile_app_icon
 copy_menu_bar_icon_resources
+copy_localization_resources
 
 if [[ "$INCLUDE_SPARKLE" == "1" && -n "$SPARKLE_FEED_URL" ]]; then
     plutil -replace SUFeedURL -string "$SPARKLE_FEED_URL" "$CONTENTS_DIR/Info.plist"

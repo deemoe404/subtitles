@@ -81,10 +81,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
     private var statusItem: NSStatusItem?
     private var showHideMenuItem: NSMenuItem?
     private var loadedFileMenuItem: NSMenuItem?
+    private var loadSubtitleMenuItem: NSMenuItem?
     private var permissionMenuItem: NSMenuItem?
     private var automationPermissionMenuItem: NSMenuItem?
     private var accessibilityPermissionMenuItem: NSMenuItem?
+    private var languageMenuItem: NSMenuItem?
+    private var languageMenuItems: [String: NSMenuItem] = [:]
+    private var setupMenuItem: NSMenuItem?
+    private var captionSettingsMenuItem: NSMenuItem?
     private var checkForUpdatesMenuItem: NSMenuItem?
+    private var quitMenuItem: NSMenuItem?
     private var onboardingWindowController: OnboardingWindowController?
 
     private var document: SubtitleDocument?
@@ -145,6 +151,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         refreshPermissionGrantState()
     }
 
+    @objc private func selectLanguageFromMenu(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let language = L10n.Language(rawValue: rawValue) else {
+            return
+        }
+
+        L10n.setLanguageSelection(language)
+        applyLocalizationChange()
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         stopRenderTimer()
         stopPlaybackDisplayTimer()
@@ -156,26 +172,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
 
         let menu = NSMenu()
         menu.delegate = self
-        loadedFileMenuItem = NSMenuItem(title: "No Subtitle Loaded", action: nil, keyEquivalent: "")
+        loadedFileMenuItem = NSMenuItem(
+            title: L10n.string("menu.no_subtitle_loaded", value: "No Subtitle Loaded"),
+            action: nil,
+            keyEquivalent: ""
+        )
         loadedFileMenuItem?.isEnabled = false
         menu.addItem(loadedFileMenuItem!)
         menu.addItem(.separator())
 
-        menu.addItem(NSMenuItem(title: "Load Subtitle...", action: #selector(loadSubtitleFromMenu), keyEquivalent: ""))
+        let loadSubtitle = NSMenuItem(
+            title: L10n.string("menu.load_subtitle", value: "Load Subtitle..."),
+            action: #selector(loadSubtitleFromMenu),
+            keyEquivalent: ""
+        )
+        loadSubtitleMenuItem = loadSubtitle
+        menu.addItem(loadSubtitle)
 
-        let showHide = NSMenuItem(title: "Hide Subtitle", action: #selector(toggleSubtitleWindow), keyEquivalent: "")
+        let showHide = NSMenuItem(
+            title: L10n.string("menu.hide_subtitle", value: "Hide Subtitle"),
+            action: #selector(toggleSubtitleWindow),
+            keyEquivalent: ""
+        )
         showHideMenuItem = showHide
         menu.addItem(showHide)
 
         menu.addItem(.separator())
 
         if showsAutomationSettings || showsAccessibilitySettings {
-            let permissionSettings = NSMenuItem(title: "Permission", action: nil, keyEquivalent: "")
-            let permissionSettingsMenu = NSMenu(title: "Permission")
+            let permissionTitle = L10n.string("menu.permission", value: "Permission")
+            let permissionSettings = NSMenuItem(title: permissionTitle, action: nil, keyEquivalent: "")
+            let permissionSettingsMenu = NSMenu(title: permissionTitle)
 
             if showsAutomationSettings {
                 let automationPermission = NSMenuItem(
-                    title: "Automation...",
+                    title: L10n.string("menu.automation", value: "Automation..."),
                     action: #selector(openAutomationPermissionSettingsFromMenu),
                     keyEquivalent: ""
                 )
@@ -184,7 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
             }
             if showsAccessibilitySettings {
                 let accessibilityPermission = NSMenuItem(
-                    title: "Accessibility...",
+                    title: L10n.string("menu.accessibility", value: "Accessibility..."),
                     action: #selector(openAccessibilityPermissionSettingsFromMenu),
                     keyEquivalent: ""
                 )
@@ -196,14 +227,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
             permissionMenuItem = permissionSettings
             menu.addItem(permissionSettings)
         }
-        menu.addItem(NSMenuItem(title: "Setup...", action: #selector(showOnboardingFromMenu), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Caption Settings...", action: #selector(openCaptionSettingsFromMenu), keyEquivalent: ""))
+
+        let language = NSMenuItem(
+            title: L10n.string("menu.language", value: "Language"),
+            action: nil,
+            keyEquivalent: ""
+        )
+        let languageMenu = NSMenu(title: L10n.string("menu.language", value: "Language"))
+        languageMenuItems.removeAll()
+        addLanguageMenuItem(.automatic, to: languageMenu)
+        languageMenu.addItem(.separator())
+        addLanguageMenuItem(.english, to: languageMenu)
+        addLanguageMenuItem(.simplifiedChinese, to: languageMenu)
+        language.submenu = languageMenu
+        languageMenuItem = language
+        menu.addItem(language)
+
+        let setup = NSMenuItem(
+            title: L10n.string("menu.setup", value: "Setup..."),
+            action: #selector(showOnboardingFromMenu),
+            keyEquivalent: ""
+        )
+        setupMenuItem = setup
+        menu.addItem(setup)
+
+        let captionSettings = NSMenuItem(
+            title: L10n.string("menu.caption_settings", value: "Caption Settings..."),
+            action: #selector(openCaptionSettingsFromMenu),
+            keyEquivalent: ""
+        )
+        captionSettingsMenuItem = captionSettings
+        menu.addItem(captionSettings)
 
         if showsUpdateMenu {
             menu.addItem(.separator())
 
             let checkForUpdates = NSMenuItem(
-                title: "Check for Updates...",
+                title: L10n.string("menu.check_for_updates", value: "Check for Updates..."),
                 action: #selector(checkForUpdatesFromMenu),
                 keyEquivalent: ""
             )
@@ -212,11 +272,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         }
 
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit \(AppMetadata.displayName)", action: #selector(quit), keyEquivalent: ""))
+        let quit = NSMenuItem(
+            title: L10n.format("menu.quit", value: "Quit %@", AppMetadata.displayName),
+            action: #selector(quit),
+            keyEquivalent: ""
+        )
+        quitMenuItem = quit
+        menu.addItem(quit)
 
         item.menu = menu
         statusItem = item
         updateMenuState()
+    }
+
+    private func addLanguageMenuItem(_ language: L10n.Language, to menu: NSMenu) {
+        let item = NSMenuItem(
+            title: language.menuTitle,
+            action: #selector(selectLanguageFromMenu),
+            keyEquivalent: ""
+        )
+        item.target = self
+        item.representedObject = language.rawValue
+        languageMenuItems[language.rawValue] = item
+        menu.addItem(item)
     }
 
     private func configureStatusItemButton(_ item: NSStatusItem) {
@@ -337,8 +415,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
 
     @objc private func loadSubtitleFromMenu() {
         let openPanel = NSOpenPanel()
-        openPanel.title = "Load Subtitle"
-        openPanel.prompt = "Load"
+        openPanel.title = L10n.string("open_panel.load_subtitle.title", value: "Load Subtitle")
+        openPanel.prompt = L10n.string("open_panel.load_subtitle.prompt", value: "Load")
         openPanel.allowsMultipleSelection = false
         openPanel.canChooseDirectories = false
         openPanel.canChooseFiles = true
@@ -428,10 +506,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
     private func presentLoadError(_ error: Error, url: URL) {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Could not load subtitle"
-        alert.informativeText = "\(url.lastPathComponent)\n\(error.localizedDescription)"
-        alert.addButton(withTitle: "OK")
+        alert.messageText = L10n.string("alert.load_subtitle_failed.title", value: "Could not load subtitle")
+        alert.informativeText = "\(url.lastPathComponent)\n\(localizedSubtitleLoadErrorDescription(error))"
+        alert.addButton(withTitle: L10n.string("button.ok", value: "OK"))
         alert.runModal()
+    }
+
+    private func localizedSubtitleLoadErrorDescription(_ error: Error) -> String {
+        guard let subtitleLoadError = error as? SubtitleLoadError else {
+            return error.localizedDescription
+        }
+
+        switch subtitleLoadError {
+        case .emptyFile:
+            return L10n.string(
+                "error.subtitle.empty",
+                value: "Subtitle file is empty."
+            )
+        case .invalidEncoding:
+            return L10n.string(
+                "error.subtitle.invalid_encoding",
+                value: "Subtitle file is not valid UTF-8 or UTF-16 text."
+            )
+        case .unsupportedFormat:
+            return L10n.string(
+                "error.subtitle.unsupported_format",
+                value: "Only SRT and WebVTT subtitles are supported."
+            )
+        case let .malformed(reason):
+            return L10n.format(
+                "error.subtitle.malformed",
+                value: "Subtitle file is malformed: %@",
+                reason
+            )
+        }
     }
 
     private func adjustOffset(by delta: TimeInterval) {
@@ -446,9 +554,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
 
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Could not open Caption Settings"
-        alert.informativeText = "Open System Settings > Accessibility > Subtitles and Captioning manually."
-        alert.addButton(withTitle: "OK")
+        alert.messageText = L10n.string(
+            "alert.caption_settings_failed.title",
+            value: "Could not open Caption Settings"
+        )
+        alert.informativeText = L10n.string(
+            "alert.caption_settings_failed.message",
+            value: "Open System Settings > Accessibility > Subtitles and Captioning manually."
+        )
+        alert.addButton(withTitle: L10n.string("button.ok", value: "OK"))
         alert.runModal()
     }
 
@@ -459,9 +573,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
 
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Could not open Automation permissions"
-        alert.informativeText = "Open System Settings > Privacy & Security > Automation, then allow One More Cap to read QuickTime Player."
-        alert.addButton(withTitle: "OK")
+        alert.messageText = L10n.string(
+            "alert.automation_permissions_failed.title",
+            value: "Could not open Automation permissions"
+        )
+        alert.informativeText = L10n.string(
+            "alert.automation_permissions_failed.message",
+            value: "Open System Settings > Privacy & Security > Automation, then allow One More Cap to read QuickTime Player."
+        )
+        alert.addButton(withTitle: L10n.string("button.ok", value: "OK"))
         alert.runModal()
     }
 
@@ -472,9 +592,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
 
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Could not open Accessibility permissions"
-        alert.informativeText = "Open System Settings > Privacy & Security > Accessibility, then allow One More Cap."
-        alert.addButton(withTitle: "OK")
+        alert.messageText = L10n.string(
+            "alert.accessibility_permissions_failed.title",
+            value: "Could not open Accessibility permissions"
+        )
+        alert.informativeText = L10n.string(
+            "alert.accessibility_permissions_failed.message",
+            value: "Open System Settings > Privacy & Security > Accessibility, then allow One More Cap."
+        )
+        alert.addButton(withTitle: L10n.string("button.ok", value: "OK"))
         alert.runModal()
     }
 
@@ -482,7 +608,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         let renderState = syncCoordinator.renderState(offset: clock.offset)
 
         guard let timeline else {
-            updateSubtitleTextIfNeeded("Drop SRT or VTT subtitle here")
+            updateSubtitleTextIfNeeded(L10n.string(
+                "subtitle.placeholder.drop_file",
+                value: "Drop SRT or VTT subtitle here"
+            ))
             updatePanelPlaybackStateIfNeeded(renderState)
             updateMenuState()
             scheduleRenderTimerIfNeeded(renderState: renderState, timeline: nil)
@@ -531,15 +660,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
     }
 
     private func updateMenuState() {
+        updateLocalizedMenuTitles()
+        updateLanguageMenuState()
+
         let automationPermission = showsAutomationSettings
-            ? settingsMenuState(title: "Automation...", isGranted: permissionGrantState.automationGranted)
+            ? settingsMenuState(
+                title: L10n.string("menu.automation", value: "Automation..."),
+                isGranted: permissionGrantState.automationGranted
+            )
             : nil
         let accessibilityPermission = showsAccessibilitySettings
-            ? settingsMenuState(title: "Accessibility...", isGranted: permissionGrantState.accessibilityGranted)
+            ? settingsMenuState(
+                title: L10n.string("menu.accessibility", value: "Accessibility..."),
+                isGranted: permissionGrantState.accessibilityGranted
+            )
             : nil
         let state = MenuDisplayState(
-            showHideTitle: panelController.isVisible ? "Hide Subtitle" : "Show Subtitle",
-            loadedFileTitle: document?.sourceURL?.lastPathComponent ?? "No Subtitle Loaded",
+            showHideTitle: panelController.isVisible
+                ? L10n.string("menu.hide_subtitle", value: "Hide Subtitle")
+                : L10n.string("menu.show_subtitle", value: "Show Subtitle"),
+            loadedFileTitle: document?.sourceURL?.lastPathComponent
+                ?? L10n.string("menu.no_subtitle_loaded", value: "No Subtitle Loaded"),
             automationPermission: automationPermission,
             accessibilityPermission: accessibilityPermission,
             canCheckForUpdates: !updateController.isConfigured || updateController.canCheckForUpdates
@@ -550,14 +691,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         lastMenuDisplayState = state
         showHideMenuItem?.title = state.showHideTitle
         loadedFileMenuItem?.title = state.loadedFileTitle
-        permissionMenuItem?.title = "Permission"
-        automationPermissionMenuItem?.title = state.automationPermission?.title ?? "Automation..."
+        permissionMenuItem?.title = L10n.string("menu.permission", value: "Permission")
+        automationPermissionMenuItem?.title = state.automationPermission?.title
+            ?? L10n.string("menu.automation", value: "Automation...")
         automationPermissionMenuItem?.isEnabled = state.automationPermission?.isEnabled ?? false
         automationPermissionMenuItem?.state = state.automationPermission?.isGranted == true ? .on : .off
-        accessibilityPermissionMenuItem?.title = state.accessibilityPermission?.title ?? "Accessibility..."
+        accessibilityPermissionMenuItem?.title = state.accessibilityPermission?.title
+            ?? L10n.string("menu.accessibility", value: "Accessibility...")
         accessibilityPermissionMenuItem?.isEnabled = state.accessibilityPermission?.isEnabled ?? false
         accessibilityPermissionMenuItem?.state = state.accessibilityPermission?.isGranted == true ? .on : .off
         checkForUpdatesMenuItem?.isEnabled = state.canCheckForUpdates
+    }
+
+    private func updateLocalizedMenuTitles() {
+        loadSubtitleMenuItem?.title = L10n.string("menu.load_subtitle", value: "Load Subtitle...")
+        languageMenuItem?.title = L10n.string("menu.language", value: "Language")
+        languageMenuItem?.submenu?.title = L10n.string("menu.language", value: "Language")
+        setupMenuItem?.title = L10n.string("menu.setup", value: "Setup...")
+        captionSettingsMenuItem?.title = L10n.string(
+            "menu.caption_settings",
+            value: "Caption Settings..."
+        )
+        checkForUpdatesMenuItem?.title = L10n.string(
+            "menu.check_for_updates",
+            value: "Check for Updates..."
+        )
+        quitMenuItem?.title = L10n.format("menu.quit", value: "Quit %@", AppMetadata.displayName)
+
+        for language in L10n.Language.allCases {
+            languageMenuItems[language.rawValue]?.title = language.menuTitle
+        }
+    }
+
+    private func updateLanguageMenuState() {
+        let selectedLanguage = L10n.languageSelection
+        for language in L10n.Language.allCases {
+            languageMenuItems[language.rawValue]?.state = language == selectedLanguage ? .on : .off
+        }
+    }
+
+    private func applyLocalizationChange() {
+        lastMenuDisplayState = nil
+        lastPanelPlaybackDisplayState = nil
+
+        updateMenuState()
+        refreshSubtitleText()
+        panelController.refreshLocalization()
+        onboardingWindowController?.refreshLocalization()
     }
 
     private func settingsMenuState(title: String, isGranted: Bool) -> SettingsMenuState {
@@ -759,8 +939,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
     func subtitlePanel(_ panelController: SubtitlePanelController, didRequestPlaybackSyncWith targetID: String) {
         guard let client = playbackClientsByID[targetID] else {
             presentPlaybackSyncError(
-                messageText: "Could not sync playback",
-                informativeText: "The selected playback target is not available in this build."
+                messageText: L10n.string("alert.sync_failed.title", value: "Could not sync playback"),
+                informativeText: L10n.string(
+                    "alert.sync_failed.unavailable_target",
+                    value: "The selected playback target is not available in this build."
+                )
             )
             return
         }
@@ -783,7 +966,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
                 setKnownAutomationPermissionGranted(false)
             }
             presentPlaybackSyncError(
-                messageText: "Could not sync \(client.target.displayName)",
+                messageText: L10n.format(
+                    "alert.sync_failed.target_title",
+                    value: "Could not sync %@",
+                    client.target.displayName
+                ),
                 informativeText: error.localizedDescription
             )
         }
@@ -794,7 +981,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         alert.alertStyle = .warning
         alert.messageText = messageText
         alert.informativeText = informativeText
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: L10n.string("button.ok", value: "OK"))
         alert.runModal()
     }
 

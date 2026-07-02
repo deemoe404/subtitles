@@ -24,7 +24,9 @@ final class SubtitleOverlayView: NSView {
     private static let fileNameSubtitleGap: CGFloat = 6
     private static let subtitleTopInsetInsideContainer: CGFloat = 10
     private static let dropActivationAlpha: CGFloat = 1 / 255
-    private static let noFileSelectedText = "No subtitle file selected"
+    private static var noFileSelectedText: String {
+        L10n.string("subtitle.file_status.no_file", value: "No subtitle file selected")
+    }
 
     private enum TrackingRole: String {
         case subtitle
@@ -35,7 +37,9 @@ final class SubtitleOverlayView: NSView {
     private static let resizeEdgesKey = "SubtitleOverlayResizeEdges"
     weak var delegate: SubtitleOverlayViewDelegate?
 
-    private static let placeholderText = "Drop SRT or VTT subtitle here"
+    private static var placeholderText: String {
+        L10n.string("subtitle.placeholder.drop_file", value: "Drop SRT or VTT subtitle here")
+    }
 
     var subtitleText: String = placeholderText {
         didSet {
@@ -196,6 +200,11 @@ final class SubtitleOverlayView: NSView {
         }
 
         loadedFileName = fileName
+        updateLoadedFileName()
+    }
+
+    func refreshLocalization() {
+        updateSubtitleText()
         updateLoadedFileName()
     }
 

@@ -1,0 +1,4 @@
+"CFBundleDisplayName" = "One More Cap";
+"CFBundleName" = "One More Cap";
+"NSAppleEventsUsageDescription" = "One More Cap reads the current playback position from QuickTime Player when you use Sync.";
+"SUBStatusItemTitle" = "Cap";

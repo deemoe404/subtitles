@@ -1,6 +1,7 @@
 import Cocoa
 import Sparkle
 import OneMoreCapAppCommon
+import OneMoreCapAppSupport
 
 public final class SparkleAppUpdateController: AppUpdateControlling {
     private let updaterController: SPUStandardUpdaterController?
@@ -64,9 +65,15 @@ public final class SparkleAppUpdateController: AppUpdateControlling {
 
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = "Updates are not configured for this build"
-        alert.informativeText = "This build does not include a Sparkle feed URL and public update key."
-        alert.addButton(withTitle: "OK")
+        alert.messageText = L10n.string(
+            "alert.updates_not_configured.title",
+            value: "Updates are not configured for this build"
+        )
+        alert.informativeText = L10n.string(
+            "alert.updates_not_configured.message",
+            value: "This build does not include a Sparkle feed URL and public update key."
+        )
+        alert.addButton(withTitle: L10n.string("button.ok", value: "OK"))
         alert.runModal()
     }
 }

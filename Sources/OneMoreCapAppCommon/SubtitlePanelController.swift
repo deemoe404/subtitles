@@ -179,6 +179,13 @@ final class SubtitlePanelController: NSObject, NSWindowDelegate, SubtitleOverlay
         applyPreferredPanelHeightIfNeeded(display: true)
     }
 
+    func refreshLocalization() {
+        overlayView.refreshLocalization()
+        toolbarView.refreshLocalization()
+        applyPreferredPanelHeightIfNeeded(display: true)
+        positionToolbarIfVisible()
+    }
+
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow, window === panel else {
             return

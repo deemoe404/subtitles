@@ -77,6 +77,11 @@ final class SubtitleToolbarView: NSView {
         invalidateIntrinsicContentSize()
     }
 
+    func refreshLocalization() {
+        model.refreshLocalization()
+        invalidateIntrinsicContentSize()
+    }
+
     private func setupView() {
         translatesAutoresizingMaskIntoConstraints = true
         autoresizingMask = [.width, .height]
@@ -122,6 +127,7 @@ final class SubtitleToolbarModel: ObservableObject {
     @Published var sourceLabel = "Manual"
     @Published var syncTargets: [ExternalPlaybackTarget] = [.quickTime]
     @Published var selectedSyncTargetID = ExternalPlaybackTarget.quickTime.id
+    @Published private var localizationRevision = 0
 
     var adjustOffset: ((TimeInterval) -> Void)?
     var requestPlaybackSync: ((String) -> Void)?
@@ -137,20 +143,42 @@ final class SubtitleToolbarModel: ObservableObject {
     var playbackStatusHelp: String {
         switch sourceLabel {
         case "Manual":
-            return "Manual playback timing"
+            return L10n.string(
+                "toolbar.playback.manual_help",
+                value: "Manual playback timing"
+            )
         case "QuickTime synced":
-            return "QuickTime synced playback timing"
+            return L10n.string(
+                "toolbar.playback.quicktime_help",
+                value: "QuickTime synced playback timing"
+            )
         default:
-            return "Playback timing source: \(sourceLabel)"
+            if sourceLabel.hasSuffix(" synced") {
+                let sourceName = String(sourceLabel.dropLast(" synced".count))
+                return L10n.format(
+                    "toolbar.playback.synced_source_help",
+                    value: "Synced playback timing: %@",
+                    sourceName
+                )
+            }
+            return L10n.format(
+                "toolbar.playback.source_help",
+                value: "Playback timing source: %@",
+                sourceLabel
+            )
         }
     }
 
     var syncTargetHelp: String {
-        "Select sync target"
+        L10n.string("toolbar.sync_target.help", value: "Select sync target")
     }
 
     var syncActionHelp: String {
-        "Sync with \(selectedSyncTarget.displayName)"
+        L10n.format(
+            "toolbar.sync_action.help",
+            value: "Sync with %@",
+            selectedSyncTarget.displayName
+        )
     }
 
     var selectedSyncTarget: ExternalPlaybackTarget {
@@ -171,6 +199,10 @@ final class SubtitleToolbarModel: ObservableObject {
 
     func requestCurrentTargetSync() {
         requestPlaybackSync?(selectedSyncTarget.id)
+    }
+
+    func refreshLocalization() {
+        localizationRevision += 1
     }
 
     private func formatTime(_ time: TimeInterval) -> String {
@@ -230,7 +262,10 @@ private struct SubtitleToolbarContentView: View {
                 .frame(height: 22)
 
             Menu {
-                Picker("Sync Target", selection: $model.selectedSyncTargetID) {
+                Picker(
+                    L10n.string("toolbar.sync_target.picker", value: "Sync Target"),
+                    selection: $model.selectedSyncTargetID
+                ) {
                     ForEach(model.syncTargets) { target in
                         Label(target.displayName, systemImage: target.symbolName)
                             .tag(target.id)
@@ -253,7 +288,7 @@ private struct SubtitleToolbarContentView: View {
             .menuIndicator(.hidden)
             .buttonStyle(.plain)
             .help(model.syncTargetHelp)
-            .accessibilityLabel(Text("Sync target"))
+            .accessibilityLabel(Text(L10n.string("toolbar.sync_target.accessibility_label", value: "Sync target")))
             .accessibilityValue(Text(model.selectedSyncTarget.displayName))
         }
         .frame(height: Self.bubbleHeight)
@@ -291,7 +326,7 @@ private struct SubtitleToolbarContentView: View {
             playbackReadout
 
             Stepper(
-                "Subtitle offset",
+                L10n.string("toolbar.offset.stepper_label", value: "Subtitle offset"),
                 onIncrement: {
                     model.adjustOffset?(0.5)
                 },
@@ -302,8 +337,14 @@ private struct SubtitleToolbarContentView: View {
             .labelsHidden()
             .controlSize(.mini)
             .fixedSize()
-            .help("Adjust subtitle offset by 0.5 seconds")
-            .accessibilityLabel(Text("Adjust subtitle offset"))
+            .help(L10n.string(
+                "toolbar.offset.adjust_help",
+                value: "Adjust subtitle offset by 0.5 seconds"
+            ))
+            .accessibilityLabel(Text(L10n.string(
+                "toolbar.offset.accessibility_label",
+                value: "Adjust subtitle offset"
+            )))
             .accessibilityValue(Text(model.offsetText))
         }
     }
@@ -321,8 +362,17 @@ private struct SubtitleToolbarContentView: View {
                 .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("Playback time"))
-        .accessibilityValue(Text("\(model.playbackStatusHelp), \(model.playbackTimeText), offset \(model.offsetText)"))
+        .accessibilityLabel(Text(L10n.string(
+            "toolbar.playback.accessibility_label",
+            value: "Playback time"
+        )))
+        .accessibilityValue(Text(L10n.format(
+            "toolbar.playback.accessibility_value",
+            value: "%@, %@, offset %@",
+            model.playbackStatusHelp,
+            model.playbackTimeText,
+            model.offsetText
+        )))
         .help(model.playbackStatusHelp)
     }
 }

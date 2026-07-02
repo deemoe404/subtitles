@@ -1,6 +1,7 @@
 @preconcurrency import Cocoa
 import Combine
 import SwiftUI
+import OneMoreCapAppSupport
 
 struct OnboardingPermissionState: Equatable {
     let showsAutomation: Bool
@@ -14,8 +15,14 @@ struct OnboardingPermissionState: Equatable {
             items.append(
                 OnboardingPermissionChecklistItem(
                     kind: .automation,
-                    title: "QuickTime Automation",
-                    detail: "Allows Sync to read the current movie time from QuickTime Player.",
+                    title: L10n.string(
+                        "onboarding.permission.quicktime.title",
+                        value: "QuickTime Automation"
+                    ),
+                    detail: L10n.string(
+                        "onboarding.permission.quicktime.detail",
+                        value: "Allows Sync to read the current movie time from QuickTime Player."
+                    ),
                     isGranted: automationGranted
                 )
             )
@@ -24,8 +31,14 @@ struct OnboardingPermissionState: Equatable {
             items.append(
                 OnboardingPermissionChecklistItem(
                     kind: .accessibility,
-                    title: "Apple TV Accessibility",
-                    detail: "Allows the GitHub build to read playback state from TV.app.",
+                    title: L10n.string(
+                        "onboarding.permission.apple_tv.title",
+                        value: "Apple TV Accessibility"
+                    ),
+                    detail: L10n.string(
+                        "onboarding.permission.apple_tv.detail",
+                        value: "Allows the GitHub build to read playback state from TV.app."
+                    ),
                     isGranted: accessibilityGranted
                 )
             )
@@ -54,7 +67,9 @@ struct OnboardingPermissionChecklistItem: Identifiable, Equatable {
     }
 
     var statusText: String {
-        isGranted ? "Allowed" : "Needs setup"
+        isGranted
+            ? L10n.string("onboarding.permission.allowed", value: "Allowed")
+            : L10n.string("onboarding.permission.needs_setup", value: "Needs setup")
     }
 
     var statusSystemImage: String {
@@ -62,7 +77,9 @@ struct OnboardingPermissionChecklistItem: Identifiable, Equatable {
     }
 
     var requestButtonTitle: String {
-        isGranted ? "Allowed" : "Request Access"
+        isGranted
+            ? L10n.string("onboarding.permission.allowed", value: "Allowed")
+            : L10n.string("onboarding.permission.request_access", value: "Request Access")
     }
 }
 
@@ -100,7 +117,7 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate {
         let hostingController = NSHostingController(rootView: OnboardingView(model: model))
         self.hostingController = hostingController
         let window = NSWindow(contentViewController: hostingController)
-        window.title = "Set Up \(appName)"
+        window.title = L10n.format("onboarding.window.title", value: "Set Up %@", appName)
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
@@ -132,6 +149,14 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate {
 
     func update(permissionState: OnboardingPermissionState) {
         model.permissionState = permissionState
+        DispatchQueue.main.async { [weak self] in
+            self?.resizeWindowToFitContent()
+        }
+    }
+
+    func refreshLocalization() {
+        window?.title = L10n.format("onboarding.window.title", value: "Set Up %@", model.appName)
+        model.refreshLocalization()
         DispatchQueue.main.async { [weak self] in
             self?.resizeWindowToFitContent()
         }
@@ -187,6 +212,7 @@ final class OnboardingWindowController: NSWindowController, NSWindowDelegate {
 private final class OnboardingViewModel: ObservableObject {
     let appName: String
     @Published var permissionState: OnboardingPermissionState
+    @Published private var localizationRevision = 0
 
     private let onRequestAutomationPermission: () -> Void
     private let onOpenAutomationSettings: () -> Void
@@ -220,8 +246,14 @@ private final class OnboardingViewModel: ObservableObject {
 
     var permissionsConfiguredText: String {
         permissionState.allVisiblePermissionsGranted
-            ? "All sync permissions are allowed."
-            : "Sync keeps working in manual mode until these are allowed."
+            ? L10n.string(
+                "onboarding.footer.all_allowed",
+                value: "All sync permissions are allowed."
+            )
+            : L10n.string(
+                "onboarding.footer.manual_until_allowed",
+                value: "Sync keeps working in manual mode until these are allowed."
+            )
     }
 
     func requestPermission(for kind: OnboardingPermissionChecklistItem.Kind) {
@@ -255,6 +287,10 @@ private final class OnboardingViewModel: ObservableObject {
     func complete() {
         onComplete()
     }
+
+    func refreshLocalization() {
+        localizationRevision += 1
+    }
 }
 
 private struct OnboardingView: View {
@@ -285,9 +321,12 @@ private struct OnboardingView: View {
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Set up \(model.appName)")
+                Text(L10n.format("onboarding.header.title", value: "Set up %@", model.appName))
                     .font(.title2.weight(.semibold))
-                Text("Grant the macOS permissions used for playback sync. You can still load subtitles without them.")
+                Text(L10n.string(
+                    "onboarding.header.subtitle",
+                    value: "Grant the macOS permissions used for playback sync. You can still load subtitles without them."
+                ))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -297,13 +336,16 @@ private struct OnboardingView: View {
     private var permissionChecklist: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Sync Permissions")
+                Text(L10n.string("onboarding.sync_permissions.title", value: "Sync Permissions"))
                     .font(.headline)
                 Spacer()
                 Button {
                     model.refreshPermissionState()
                 } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label(
+                        L10n.string("button.refresh", value: "Refresh"),
+                        systemImage: "arrow.clockwise"
+                    )
                 }
                 .buttonStyle(.borderless)
             }
@@ -332,9 +374,12 @@ private struct OnboardingView: View {
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("Caption Style")
+                Text(L10n.string("onboarding.caption_style.title", value: "Caption Style"))
                     .font(.subheadline.weight(.semibold))
-                Text("Use macOS caption settings to choose subtitle text style.")
+                Text(L10n.string(
+                    "onboarding.caption_style.detail",
+                    value: "Use macOS caption settings to choose subtitle text style."
+                ))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -344,7 +389,10 @@ private struct OnboardingView: View {
             Button {
                 model.openCaptionSettings()
             } label: {
-                Label("Open Settings", systemImage: "gearshape")
+                Label(
+                    L10n.string("button.open_settings", value: "Open Settings"),
+                    systemImage: "gearshape"
+                )
             }
         }
         .padding(14)
@@ -362,7 +410,7 @@ private struct OnboardingView: View {
             Button {
                 model.complete()
             } label: {
-                Text("Done")
+                Text(L10n.string("button.done", value: "Done"))
                     .frame(minWidth: 74)
             }
             .buttonStyle(.borderedProminent)
@@ -412,7 +460,7 @@ private struct OnboardingPermissionRow: View {
                     Button {
                         openSettings()
                     } label: {
-                        Text("Open Settings")
+                        Text(L10n.string("button.open_settings", value: "Open Settings"))
                     }
                     .buttonStyle(.link)
                 }
@@ -421,6 +469,11 @@ private struct OnboardingPermissionRow: View {
         .padding(14)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(item.title), \(item.statusText)")
+        .accessibilityLabel(L10n.format(
+            "onboarding.permission.accessibility_label",
+            value: "%@, %@",
+            item.title,
+            item.statusText
+        ))
     }
 }

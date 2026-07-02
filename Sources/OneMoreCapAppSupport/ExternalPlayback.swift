@@ -69,15 +69,35 @@ public enum ExternalPlaybackError: Error, Equatable, LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case let .notRunning(appName):
-            return "\(appName) is not running."
+            return L10n.format(
+                "error.external.not_running",
+                value: "%@ is not running.",
+                appName
+            )
         case let .accessibilityPermissionDenied(appName):
-            return "Accessibility permission for One More Cap to read \(appName) is not granted."
+            return L10n.format(
+                "error.external.accessibility_denied",
+                value: "Accessibility permission for One More Cap to read %@ is not granted.",
+                appName
+            )
         case let .automationPermissionDenied(appName):
-            return "Automation permission for One More Cap to read \(appName) is not granted."
+            return L10n.format(
+                "error.external.automation_denied",
+                value: "Automation permission for One More Cap to read %@ is not granted.",
+                appName
+            )
         case let .missingDocument(appName):
-            return "\(appName) does not have an open movie document."
+            return L10n.format(
+                "error.external.missing_document",
+                value: "%@ does not have an open movie document.",
+                appName
+            )
         case let .missingPosition(appName):
-            return "\(appName) did not return a playback position."
+            return L10n.format(
+                "error.external.missing_position",
+                value: "%@ did not return a playback position.",
+                appName
+            )
         }
     }
 }

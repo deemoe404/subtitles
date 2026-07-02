@@ -103,6 +103,7 @@ if isAppStoreOnlyManifest {
             name: "OneMoreCapGitHubSupport",
             dependencies: [
                 "OneMoreCapAppCommon",
+                "OneMoreCapAppSupport",
                 "Sparkle"
             ],
             swiftSettings: swiftSettings
