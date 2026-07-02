@@ -30,6 +30,7 @@ public struct SubtitlesAppConfiguration {
     let defaultPlaybackTargetID: String?
     let updateController: any AppUpdateControlling
     let accessibilityPermissionGranted: () -> Bool
+    let requestAccessibilityPermission: (() -> Bool)?
     let showsAutomationSettings: Bool
     let showsAccessibilitySettings: Bool
     let showsUpdateMenu: Bool
@@ -39,6 +40,7 @@ public struct SubtitlesAppConfiguration {
         defaultPlaybackTargetID: String?,
         updateController: any AppUpdateControlling,
         accessibilityPermissionGranted: @escaping () -> Bool,
+        requestAccessibilityPermission: (() -> Bool)? = nil,
         showsAutomationSettings: Bool,
         showsAccessibilitySettings: Bool,
         showsUpdateMenu: Bool
@@ -47,6 +49,7 @@ public struct SubtitlesAppConfiguration {
         self.defaultPlaybackTargetID = defaultPlaybackTargetID
         self.updateController = updateController
         self.accessibilityPermissionGranted = accessibilityPermissionGranted
+        self.requestAccessibilityPermission = requestAccessibilityPermission
         self.showsAutomationSettings = showsAutomationSettings
         self.showsAccessibilitySettings = showsAccessibilitySettings
         self.showsUpdateMenu = showsUpdateMenu

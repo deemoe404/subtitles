@@ -28,6 +28,13 @@ public final class AppleTVPlaybackClient: ExternalPlaybackClient {
         AXIsProcessTrusted()
     }
 
+    public static func requestAccessibilityPermission() -> Bool {
+        let options = [
+            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
+        ] as CFDictionary
+        return AXIsProcessTrustedWithOptions(options)
+    }
+
     init(
         runningApplicationProvider: @escaping (String) -> [NSRunningApplication]
     ) {

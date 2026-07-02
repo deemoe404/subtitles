@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
     private static let minimumPlaybackDisplayDelay: TimeInterval = 0.01
     private static let statusItemIconPointSize = NSSize(width: 18, height: 18)
     private static let automationPermissionKnownGrantedDefaultsKey = "automationPermissionKnownGranted"
+    private static let onboardingSeenDefaultsKey = "onboardingSeen"
 
     private struct PanelPlaybackDisplayState: Equatable {
         let isPlaying: Bool
@@ -71,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
     private let playbackTargets: [ExternalPlaybackTarget]
     private let defaultPlaybackTargetID: String?
     private let accessibilityPermissionGranted: () -> Bool
+    private let requestAccessibilityPermission: (() -> Bool)?
     private let permissionGrantQueue = DispatchQueue(label: "app.onemorecap.permission-grants", qos: .utility)
     private let showsAutomationSettings: Bool
     private let showsAccessibilitySettings: Bool
@@ -83,6 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
     private var automationPermissionMenuItem: NSMenuItem?
     private var accessibilityPermissionMenuItem: NSMenuItem?
     private var checkForUpdatesMenuItem: NSMenuItem?
+    private var onboardingWindowController: OnboardingWindowController?
 
     private var document: SubtitleDocument?
     private var timeline: SubtitleTimeline?
@@ -114,6 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         playbackTargets = targets
         defaultPlaybackTargetID = configuration.defaultPlaybackTargetID
         accessibilityPermissionGranted = configuration.accessibilityPermissionGranted
+        requestAccessibilityPermission = configuration.requestAccessibilityPermission
         showsAutomationSettings = configuration.showsAutomationSettings
         showsAccessibilitySettings = configuration.showsAccessibilitySettings
         showsUpdateMenu = configuration.showsUpdateMenu
@@ -133,6 +137,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         setupStatusItem()
         panelController.show()
         refreshSubtitleText()
+        refreshPermissionGrantState()
+        showOnboardingIfNeeded()
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
         refreshPermissionGrantState()
     }
 
@@ -187,6 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
             permissionMenuItem = permissionSettings
             menu.addItem(permissionSettings)
         }
+        menu.addItem(NSMenuItem(title: "Setup...", action: #selector(showOnboardingFromMenu), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Caption Settings...", action: #selector(openCaptionSettingsFromMenu), keyEquivalent: ""))
 
         if showsUpdateMenu {
@@ -387,6 +397,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         openAccessibilityPermissionSettings()
     }
 
+    @objc private func showOnboardingFromMenu() {
+        showOnboardingWindow()
+    }
+
     @objc private func checkForUpdatesFromMenu() {
         updateController.checkForUpdates()
     }
@@ -577,17 +591,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
             )
 
             DispatchQueue.main.async { [weak self] in
-                guard let self, permissionGrantState != nextState else {
+                guard let self else {
                     return
                 }
 
-                permissionGrantState = nextState
-                updateMenuState()
+                applyPermissionGrantState(nextState)
             }
         }
     }
 
-    private static func automationPermissionProbeResult() -> AutomationPermissionProbeResult {
+    private static func automationPermissionProbeResult(askUserIfNeeded: Bool = false) -> AutomationPermissionProbeResult {
         var target = AEAddressDesc()
         let bundleIdentifier = QuickTimePlaybackClient.bundleIdentifier
         let createStatus = bundleIdentifier.withCString { pointer in
@@ -609,7 +622,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
             &target,
             AEEventClass(typeWildCard),
             AEEventID(typeWildCard),
-            false
+            askUserIfNeeded
         )
         if status == noErr {
             return .granted
@@ -628,17 +641,115 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         UserDefaults.standard.set(isGranted, forKey: automationPermissionKnownGrantedDefaultsKey)
     }
 
+    private func applyPermissionGrantState(_ nextState: PermissionGrantState) {
+        let stateChanged = permissionGrantState != nextState
+        permissionGrantState = nextState
+        if stateChanged {
+            updateMenuState()
+        }
+        updateOnboardingPermissionState()
+    }
+
     private func setKnownAutomationPermissionGranted(_ isGranted: Bool) {
         Self.cacheKnownAutomationPermissionGranted(isGranted)
-        guard showsAutomationSettings, permissionGrantState.automationGranted != isGranted else {
+        guard showsAutomationSettings else {
             return
         }
 
-        permissionGrantState = PermissionGrantState(
+        applyPermissionGrantState(PermissionGrantState(
             automationGranted: isGranted,
             accessibilityGranted: permissionGrantState.accessibilityGranted
+        ))
+    }
+
+    private func requestAutomationPermissionFromOnboarding() {
+        switch Self.automationPermissionProbeResult(askUserIfNeeded: true) {
+        case .granted:
+            setKnownAutomationPermissionGranted(true)
+        case .denied:
+            setKnownAutomationPermissionGranted(false)
+        case .unavailable:
+            refreshPermissionGrantState()
+        }
+    }
+
+    private func requestAccessibilityPermissionFromOnboarding() {
+        let isGranted = requestAccessibilityPermission?() ?? false
+        if showsAccessibilitySettings {
+            applyPermissionGrantState(PermissionGrantState(
+                automationGranted: permissionGrantState.automationGranted,
+                accessibilityGranted: isGranted
+            ))
+        }
+        refreshPermissionGrantState()
+    }
+
+    private func showOnboardingIfNeeded() {
+        guard !UserDefaults.standard.bool(forKey: Self.onboardingSeenDefaultsKey) else {
+            return
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            self?.showOnboardingWindow()
+        }
+    }
+
+    private func showOnboardingWindow() {
+        if onboardingWindowController == nil {
+            onboardingWindowController = OnboardingWindowController(
+                appName: AppMetadata.displayName,
+                permissionState: onboardingPermissionState(),
+                onRequestAutomationPermission: { [weak self] in
+                    self?.requestAutomationPermissionFromOnboarding()
+                },
+                onOpenAutomationSettings: { [weak self] in
+                    self?.openAutomationPermissionSettings()
+                },
+                onRequestAccessibilityPermission: { [weak self] in
+                    self?.requestAccessibilityPermissionFromOnboarding()
+                },
+                onOpenAccessibilitySettings: { [weak self] in
+                    self?.openAccessibilityPermissionSettings()
+                },
+                onOpenCaptionSettings: { [weak self] in
+                    self?.openCaptionSettings()
+                },
+                onRefreshPermissionState: { [weak self] in
+                    self?.refreshPermissionGrantState()
+                },
+                onComplete: { [weak self] in
+                    self?.completeOnboarding()
+                },
+                onDismiss: {
+                    Self.markOnboardingSeen()
+                }
+            )
+        }
+
+        updateOnboardingPermissionState()
+        onboardingWindowController?.show()
+    }
+
+    private func completeOnboarding() {
+        Self.markOnboardingSeen()
+        onboardingWindowController?.close()
+    }
+
+    private static func markOnboardingSeen() {
+        UserDefaults.standard.set(true, forKey: onboardingSeenDefaultsKey)
+    }
+
+    private func updateOnboardingPermissionState() {
+        onboardingWindowController?.update(permissionState: onboardingPermissionState())
+    }
+
+    private func onboardingPermissionState() -> OnboardingPermissionState {
+        OnboardingPermissionState(
+            showsAutomation: showsAutomationSettings,
+            automationGranted: permissionGrantState.automationGranted,
+            showsAccessibility: showsAccessibilitySettings,
+            accessibilityGranted: permissionGrantState.accessibilityGranted
         )
-        updateMenuState()
     }
 
     func subtitlePanel(_ panelController: SubtitlePanelController, didAdjustOffsetBy delta: TimeInterval) {
