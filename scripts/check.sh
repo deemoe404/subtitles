@@ -6,8 +6,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/env.sh"
 load_subtitles_env "$ROOT_DIR"
 APP_NAME="${SUBTITLES_APP_NAME:-One More Cap}"
-APP_BUNDLE_NAME="${SUBTITLES_APP_BUNDLE_NAME:-OneMoreCap}"
-APP_EXECUTABLE_NAME="${SUBTITLES_APP_EXECUTABLE_NAME:-OneMoreCap}"
+APP_BUNDLE_NAME="${SUBTITLES_APP_BUNDLE_NAME:-One More Cap}"
+APP_EXECUTABLE_NAME="${SUBTITLES_APP_EXECUTABLE_NAME:-One More Cap}"
 
 assert_appstore_build_without_sparkle_vendor() {
     local sparkle_dir="$ROOT_DIR/Vendor/Sparkle"
@@ -75,7 +75,7 @@ grep -q "Second cue." /tmp/subtitles-harness-at.txt
 
 GITHUB_APP_PATH="$(
     SUBTITLES_DISTRIBUTION_CHANNEL=github \
-    SUBTITLES_APP_BUNDLE_NAME=OneMoreCap-GitHub \
+    SUBTITLES_APP_BUNDLE_NAME="One More Cap-GitHub" \
     scripts/package-app.sh | tail -n 1
 )"
 plutil -lint "$GITHUB_APP_PATH/Contents/Info.plist"
@@ -88,6 +88,7 @@ test -f "$GITHUB_APP_PATH/Contents/Resources/MenuBarIcon@2x.png"
     "$GITHUB_APP_PATH/Contents/Resources/MenuBarIcon.png" \
     "$GITHUB_APP_PATH/Contents/Resources/MenuBarIcon@2x.png"
 test "$(plutil -extract CFBundleDisplayName raw -o - "$GITHUB_APP_PATH/Contents/Info.plist")" = "$APP_NAME"
+test "$(plutil -extract CFBundleExecutable raw -o - "$GITHUB_APP_PATH/Contents/Info.plist")" = "$APP_EXECUTABLE_NAME"
 test "$(plutil -extract CFBundleIconName raw -o - "$GITHUB_APP_PATH/Contents/Info.plist")" = "AppIcon"
 test "$(plutil -extract SUBDistributionChannel raw -o - "$GITHUB_APP_PATH/Contents/Info.plist")" = "github"
 test -d "$GITHUB_APP_PATH/Contents/Frameworks/Sparkle.framework"
@@ -99,7 +100,7 @@ grep -q "ApplicationServices.framework" /tmp/subtitles-github-otool.txt
 APPSTORE_APP_PATH="$(
     env -u SUBTITLES_SPARKLE_FEED_URL -u SUBTITLES_SPARKLE_PUBLIC_ED_KEY \
     SUBTITLES_DISTRIBUTION_CHANNEL=appstore \
-    SUBTITLES_APP_BUNDLE_NAME=OneMoreCap-AppStore \
+    SUBTITLES_APP_BUNDLE_NAME="One More Cap-AppStore" \
     SUBTITLES_BUNDLE_IDENTIFIER=local.Subtitles.AppStore \
     scripts/package-app.sh | tail -n 1
 )"
@@ -113,6 +114,7 @@ test -f "$APPSTORE_APP_PATH/Contents/Resources/MenuBarIcon@2x.png"
     "$APPSTORE_APP_PATH/Contents/Resources/MenuBarIcon.png" \
     "$APPSTORE_APP_PATH/Contents/Resources/MenuBarIcon@2x.png"
 test "$(plutil -extract CFBundleDisplayName raw -o - "$APPSTORE_APP_PATH/Contents/Info.plist")" = "$APP_NAME"
+test "$(plutil -extract CFBundleExecutable raw -o - "$APPSTORE_APP_PATH/Contents/Info.plist")" = "$APP_EXECUTABLE_NAME"
 test "$(plutil -extract CFBundleIconName raw -o - "$APPSTORE_APP_PATH/Contents/Info.plist")" = "AppIcon"
 test "$(plutil -extract SUBDistributionChannel raw -o - "$APPSTORE_APP_PATH/Contents/Info.plist")" = "appstore"
 test ! -e "$APPSTORE_APP_PATH/Contents/Frameworks/Sparkle.framework"

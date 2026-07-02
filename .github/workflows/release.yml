@@ -25,8 +25,8 @@ jobs:
       SUBTITLES_BUNDLE_IDENTIFIER: local.Subtitles.AppStore
       SUBTITLES_DISTRIBUTION_CHANNEL: appstore
       SUBTITLES_APP_NAME: One More Cap
-      SUBTITLES_APP_BUNDLE_NAME: OneMoreCap-AppStore
-      SUBTITLES_APP_EXECUTABLE_NAME: OneMoreCap
+      SUBTITLES_APP_BUNDLE_NAME: One More Cap-AppStore
+      SUBTITLES_APP_EXECUTABLE_NAME: One More Cap
 
     steps:
       - name: Checkout release tag
@@ -63,7 +63,7 @@ jobs:
             env -u SUBTITLES_SPARKLE_FEED_URL -u SUBTITLES_SPARKLE_PUBLIC_ED_KEY \
             scripts/package-app.sh | tail -n 1
           )"
-          asset_name="OneMoreCap-${safe_tag}-macOS-AppStore-channel.zip"
+          asset_name="One More Cap-${safe_tag}-macOS-AppStore-channel.zip"
           asset_path="dist/${asset_name}"
 
           mkdir -p dist
@@ -89,8 +89,8 @@ jobs:
       SUBTITLES_BUNDLE_IDENTIFIER: local.Subtitles
       SUBTITLES_DISTRIBUTION_CHANNEL: github
       SUBTITLES_APP_NAME: One More Cap
-      SUBTITLES_APP_BUNDLE_NAME: OneMoreCap
-      SUBTITLES_APP_EXECUTABLE_NAME: OneMoreCap
+      SUBTITLES_APP_BUNDLE_NAME: One More Cap
+      SUBTITLES_APP_EXECUTABLE_NAME: One More Cap
       SUBTITLES_SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SUBTITLES_SPARKLE_PUBLIC_ED_KEY }}
       SUBTITLES_SPARKLE_PRIVATE_KEY: ${{ secrets.SUBTITLES_SPARKLE_PRIVATE_KEY }}
 
@@ -143,7 +143,7 @@ jobs:
         run: |
           app_path="$(SUBTITLES_DISTRIBUTION_CHANNEL=github scripts/package-app.sh | tail -n 1)"
           safe_tag="${RELEASE_TAG//\//-}"
-          asset_name="OneMoreCap-${safe_tag}-macOS.zip"
+          asset_name="One More Cap-${safe_tag}-macOS.zip"
           asset_path="dist/${asset_name}"
 
           mkdir -p dist

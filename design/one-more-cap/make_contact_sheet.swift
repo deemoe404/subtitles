@@ -40,9 +40,9 @@ drawText("One More Cap Icon Composer Drafts", x: 40, y: 1010, size: 26, weight: 
 drawText("App seams are generated from projected hemisphere meridians; subtitle bars are short-over-long.", x: 40, y: 980, size: 14, weight: .regular)
 
 let appRows = [
-    ("A Balanced", "OneMoreCap-a-balanced"),
-    ("B Long Brim", "OneMoreCap-b-long-brim"),
-    ("C Minimal", "OneMoreCap-c-minimal")
+    ("A Balanced", "One More Cap-a-balanced"),
+    ("B Long Brim", "One More Cap-b-long-brim"),
+    ("C Minimal", "One More Cap-c-minimal")
 ]
 var y: CGFloat = 700
 for row in appRows {

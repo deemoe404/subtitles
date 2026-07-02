@@ -448,7 +448,7 @@ def icon_json(variant: Variant) -> dict:
 
 
 def make_icon_bundle(variant: Variant) -> Path:
-    icon_dir = ROOT / "icon-composer" / f"OneMoreCap-{variant.slug}.icon"
+    icon_dir = ROOT / "icon-composer" / f"One More Cap-{variant.slug}.icon"
     if icon_dir.exists():
         shutil.rmtree(icon_dir)
     icon_dir.mkdir(parents=True)

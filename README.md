@@ -30,8 +30,8 @@ SUBTITLES_DISTRIBUTION_CHANNEL=appstore mise exec -- scripts/package-app.sh
 ```
 
 The default packaged app is the GitHub/full channel and is written to
-`build/OneMoreCap.app`. Set `SUBTITLES_DISTRIBUTION_CHANNEL=appstore` to package
-the App Store channel.
+`build/One More Cap.app`. Set `SUBTITLES_DISTRIBUTION_CHANNEL=appstore` to
+package the App Store channel.
 
 `scripts/check.sh` prepares Sparkle for the GitHub/full channel, then builds and
 packages both channels. GitHub/full packaging also prepares Sparkle. The App
@@ -65,7 +65,7 @@ is ignored by git; `.env.local.example` documents the supported variables:
 
 ```sh
 SUBTITLES_CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)"
-SUBTITLES_BUNDLE_IDENTIFIER="com.example.OneMoreCap"
+SUBTITLES_BUNDLE_IDENTIFIER="com.example.one-more-cap"
 ```
 
 The same values can also be supplied as environment variables for one-off
@@ -127,9 +127,10 @@ That check builds both `SubtitlesApp` and `SubtitlesAppStore`, then verifies tha
 the GitHub/full package includes Sparkle and the App Store package does not.
 
 When a GitHub Release is published, the release workflow builds the tagged
-checkout on a macOS runner, packages `build/OneMoreCap.app`, zips the app bundle,
-generates the Sparkle appcast, and uploads both files back to the Release
-assets. It also produces an App Store-channel workflow artifact without Sparkle.
+checkout on a macOS runner, packages `build/One More Cap.app`, zips the app
+bundle, generates the Sparkle appcast, and uploads both files back to the
+Release assets. It also produces an App Store-channel workflow artifact without
+Sparkle.
 The release asset is ad-hoc signed by default; Developer ID signing,
 notarization, and App Store upload signing are separate distribution steps.
 
