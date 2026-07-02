@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs><filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#000000" flood-opacity="0.22"/></filter></defs>
+<g filter="url(#soft-shadow)">
+  <path d="M 258.3 538.0 C 263.1 419.0, 342.8 319.0, 487.7 304.0 C 621.2 291.0, 722.0 383.0, 744.0 527.0 C 638.4 510.0, 419.6 512.0, 258.3 538.0 Z" fill="#fff5dd" opacity="1.000"/>
+</g>
+</svg>

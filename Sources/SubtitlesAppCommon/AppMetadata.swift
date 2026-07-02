@@ -4,11 +4,11 @@ enum AppMetadata {
     static var displayName: String {
         string(forInfoDictionaryKey: "CFBundleDisplayName")
             ?? string(forInfoDictionaryKey: "CFBundleName")
-            ?? "Subtitles"
+            ?? "One More Cap"
     }
 
     static var statusItemTitle: String {
-        string(forInfoDictionaryKey: "SUBStatusItemTitle") ?? "Sub"
+        string(forInfoDictionaryKey: "SUBStatusItemTitle") ?? "Cap"
     }
 
     private static func string(forInfoDictionaryKey key: String) -> String? {

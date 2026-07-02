@@ -12,7 +12,7 @@ final class AppleTVPlaybackTests: XCTestCase {
     func testPermissionErrorDescriptionIsAccessibilitySpecific() {
         XCTAssertEqual(
             ExternalPlaybackError.accessibilityPermissionDenied(appName: AppleTVPlaybackClient.appName).localizedDescription,
-            "Accessibility permission for Subtitles to read TV.app is not granted."
+            "Accessibility permission for One More Cap to read TV.app is not granted."
         )
     }
 }

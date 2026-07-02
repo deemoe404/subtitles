@@ -6,9 +6,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/env.sh"
 load_subtitles_env "$ROOT_DIR"
 
-APP_NAME="${SUBTITLES_APP_NAME:-Subtitles}"
-APP_BUNDLE_NAME="${SUBTITLES_APP_BUNDLE_NAME:-$APP_NAME}"
-APP_EXECUTABLE_NAME="${SUBTITLES_APP_EXECUTABLE_NAME:-$APP_NAME}"
+APP_NAME="${SUBTITLES_APP_NAME:-One More Cap}"
+APP_BUNDLE_NAME="${SUBTITLES_APP_BUNDLE_NAME:-OneMoreCap}"
+APP_EXECUTABLE_NAME="${SUBTITLES_APP_EXECUTABLE_NAME:-OneMoreCap}"
 APP_DIR="$ROOT_DIR/build/$APP_BUNDLE_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -22,7 +22,9 @@ MINIMUM_SYSTEM_VERSION="${SUBTITLES_MINIMUM_SYSTEM_VERSION:-26.0}"
 DISTRIBUTION_CHANNEL="${SUBTITLES_DISTRIBUTION_CHANNEL:-github}"
 CODESIGN_IDENTITY="${SUBTITLES_CODESIGN_IDENTITY:--}"
 CODESIGN_ENTITLEMENTS="${SUBTITLES_CODESIGN_ENTITLEMENTS:-}"
-STATUS_ITEM_TITLE="${SUBTITLES_STATUS_ITEM_TITLE:-Sub}"
+STATUS_ITEM_TITLE="${SUBTITLES_STATUS_ITEM_TITLE:-Cap}"
+APP_ICON_SOURCE="${SUBTITLES_APP_ICON_SOURCE:-$ROOT_DIR/Resources/AppIcon.icon}"
+MENU_BAR_ICON_SOURCE_DIR="${SUBTITLES_MENU_BAR_ICON_SOURCE_DIR:-$ROOT_DIR/Resources}"
 SPARKLE_FEED_URL="${SUBTITLES_SPARKLE_FEED_URL:-}"
 SPARKLE_PUBLIC_ED_KEY="${SUBTITLES_SPARKLE_PUBLIC_ED_KEY:-}"
 SPARKLE_FRAMEWORK_SOURCE="$ROOT_DIR/Vendor/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
@@ -107,6 +109,62 @@ verify_appstore_entitlements() {
     fi
 }
 
+compile_app_icon() {
+    if [[ ! -d "$APP_ICON_SOURCE" ]]; then
+        echo "App icon source not found: $APP_ICON_SOURCE" >&2
+        exit 1
+    fi
+
+    local temp_icon_dir
+    local temp_assets_dir
+    local partial_info_plist
+    local actool_output
+
+    temp_icon_dir="$(mktemp -d)"
+    temp_assets_dir="$(mktemp -d)"
+    partial_info_plist="$temp_assets_dir/AppIcon-PartialInfo.plist"
+
+    /usr/bin/ditto "$APP_ICON_SOURCE" "$temp_icon_dir/AppIcon.icon"
+    if ! actool_output="$(
+        xcrun actool \
+            --compile "$temp_assets_dir" \
+            --platform macosx \
+            --minimum-deployment-target "$MINIMUM_SYSTEM_VERSION" \
+            --app-icon AppIcon \
+            --output-partial-info-plist "$partial_info_plist" \
+            "$temp_icon_dir/AppIcon.icon"
+    )"; then
+        printf '%s\n' "$actool_output" >&2
+        rm -rf "$temp_icon_dir" "$temp_assets_dir"
+        exit 1
+    fi
+
+    if [[ ! -f "$temp_assets_dir/Assets.car" || ! -f "$temp_assets_dir/AppIcon.icns" ]]; then
+        printf '%s\n' "$actool_output" >&2
+        echo "actool did not produce the expected app icon assets." >&2
+        rm -rf "$temp_icon_dir" "$temp_assets_dir"
+        exit 1
+    fi
+
+    cp "$temp_assets_dir/Assets.car" "$RESOURCES_DIR/Assets.car"
+    cp "$temp_assets_dir/AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns"
+    plutil -replace CFBundleIconFile -string AppIcon "$CONTENTS_DIR/Info.plist"
+    plutil -replace CFBundleIconName -string AppIcon "$CONTENTS_DIR/Info.plist"
+
+    rm -rf "$temp_icon_dir" "$temp_assets_dir"
+}
+
+copy_menu_bar_icon_resources() {
+    local resource
+    for resource in MenuBarIcon.png MenuBarIcon@2x.png MenuBarIcon.svg; do
+        if [[ ! -f "$MENU_BAR_ICON_SOURCE_DIR/$resource" ]]; then
+            echo "Menu bar icon resource not found: $MENU_BAR_ICON_SOURCE_DIR/$resource" >&2
+            exit 1
+        fi
+        cp "$MENU_BAR_ICON_SOURCE_DIR/$resource" "$RESOURCES_DIR/$resource"
+    done
+}
+
 cd "$ROOT_DIR"
 if [[ "$INCLUDE_SPARKLE" == "1" ]]; then
     "$ROOT_DIR/scripts/prepare-sparkle.sh" >/dev/null
@@ -143,10 +201,13 @@ plutil -replace CFBundleShortVersionString -string "$BUNDLE_SHORT_VERSION" "$CON
 plutil -replace CFBundleVersion -string "$BUNDLE_VERSION" "$CONTENTS_DIR/Info.plist"
 plutil -replace LSMinimumSystemVersion -string "$MINIMUM_SYSTEM_VERSION" "$CONTENTS_DIR/Info.plist"
 plutil -replace LSUIElement -bool YES "$CONTENTS_DIR/Info.plist"
-plutil -replace NSAppleEventsUsageDescription -string "Subtitles reads the current playback position from QuickTime Player when you use Sync." "$CONTENTS_DIR/Info.plist"
+plutil -replace NSAppleEventsUsageDescription -string "$APP_NAME reads the current playback position from QuickTime Player when you use Sync." "$CONTENTS_DIR/Info.plist"
 plutil -replace NSHighResolutionCapable -bool YES "$CONTENTS_DIR/Info.plist"
 plutil -replace SUBDistributionChannel -string "$DISTRIBUTION_CHANNEL" "$CONTENTS_DIR/Info.plist"
 plutil -replace SUBStatusItemTitle -string "$STATUS_ITEM_TITLE" "$CONTENTS_DIR/Info.plist"
+
+compile_app_icon
+copy_menu_bar_icon_resources
 
 if [[ "$INCLUDE_SPARKLE" == "1" && -n "$SPARKLE_FEED_URL" ]]; then
     plutil -replace SUFeedURL -string "$SPARKLE_FEED_URL" "$CONTENTS_DIR/Info.plist"

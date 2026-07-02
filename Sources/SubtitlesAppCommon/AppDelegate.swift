@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
     private static let minimumRenderDelay: TimeInterval = 0.01
     private static let boundaryEpsilon: TimeInterval = 0.001
     private static let minimumPlaybackDisplayDelay: TimeInterval = 0.01
+    private static let statusItemIconPointSize = NSSize(width: 18, height: 18)
 
     private struct PanelPlaybackDisplayState: Equatable {
         let isPlaying: Bool
@@ -113,8 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
 
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.title = AppMetadata.statusItemTitle
-        item.button?.toolTip = AppMetadata.displayName
+        configureStatusItemButton(item)
 
         let menu = NSMenu()
         menu.delegate = self
@@ -169,6 +169,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         item.menu = menu
         statusItem = item
         updateMenuState()
+    }
+
+    private func configureStatusItemButton(_ item: NSStatusItem) {
+        guard let button = item.button else {
+            return
+        }
+
+        button.toolTip = AppMetadata.displayName
+        button.setAccessibilityLabel(AppMetadata.displayName)
+
+        if let image = Self.statusItemIcon() {
+            item.length = NSStatusItem.squareLength
+            button.image = image
+            button.imagePosition = .imageOnly
+            button.title = ""
+        } else {
+            item.length = NSStatusItem.variableLength
+            button.image = nil
+            button.imagePosition = .noImage
+            button.title = AppMetadata.statusItemTitle
+        }
+    }
+
+    private static func statusItemIcon() -> NSImage? {
+        let image = NSImage(named: "MenuBarIcon")
+            ?? Bundle.main.url(forResource: "MenuBarIcon", withExtension: "png")
+                .flatMap(NSImage.init(contentsOf:))
+        image?.isTemplate = true
+        image?.size = statusItemIconPointSize
+        return image
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -377,7 +407,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Could not open Automation permissions"
-        alert.informativeText = "Open System Settings > Privacy & Security > Automation, then allow Subtitles to read QuickTime Player."
+        alert.informativeText = "Open System Settings > Privacy & Security > Automation, then allow One More Cap to read QuickTime Player."
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
@@ -390,7 +420,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Subtit
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Could not open Accessibility permissions"
-        alert.informativeText = "Open System Settings > Privacy & Security > Accessibility, then allow Subtitles."
+        alert.informativeText = "Open System Settings > Privacy & Security > Accessibility, then allow One More Cap."
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }

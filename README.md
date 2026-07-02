@@ -1,6 +1,6 @@
-# Subtitles
+# One More Cap
 
-Subtitles is a native macOS menu-bar app for playing an external subtitle file over a movie that does not include the subtitle track you need.
+One More Cap is a native macOS menu-bar app for playing an external subtitle file over a movie that does not include the subtitle track you need.
 
 The MVP flow is:
 
@@ -30,7 +30,7 @@ SUBTITLES_DISTRIBUTION_CHANNEL=appstore mise exec -- scripts/package-app.sh
 ```
 
 The default packaged app is the GitHub/full channel and is written to
-`build/Subtitles.app`. Set `SUBTITLES_DISTRIBUTION_CHANNEL=appstore` to package
+`build/OneMoreCap.app`. Set `SUBTITLES_DISTRIBUTION_CHANNEL=appstore` to package
 the App Store channel.
 
 `scripts/check.sh` prepares Sparkle for the GitHub/full channel, then builds and
@@ -65,7 +65,7 @@ is ignored by git; `.env.local.example` documents the supported variables:
 
 ```sh
 SUBTITLES_CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)"
-SUBTITLES_BUNDLE_IDENTIFIER="com.example.Subtitles"
+SUBTITLES_BUNDLE_IDENTIFIER="com.example.OneMoreCap"
 ```
 
 The same values can also be supplied as environment variables for one-off
@@ -127,7 +127,7 @@ That check builds both `SubtitlesApp` and `SubtitlesAppStore`, then verifies tha
 the GitHub/full package includes Sparkle and the App Store package does not.
 
 When a GitHub Release is published, the release workflow builds the tagged
-checkout on a macOS runner, packages `build/Subtitles.app`, zips the app bundle,
+checkout on a macOS runner, packages `build/OneMoreCap.app`, zips the app bundle,
 generates the Sparkle appcast, and uploads both files back to the Release
 assets. It also produces an App Store-channel workflow artifact without Sparkle.
 The release asset is ad-hoc signed by default; Developer ID signing,
@@ -140,7 +140,7 @@ already exists.
 
 ## License
 
-Subtitles is source-available under the [PolyForm Noncommercial License
+One More Cap is source-available under the [PolyForm Noncommercial License
 1.0.0](LICENSE). Commercial use is not permitted without a separate license.
 Packaged app bundles include a copy of the license in `Contents/Resources`.
 
@@ -153,7 +153,7 @@ mise exec -- swift run SubtitleHarness at Fixtures/sample.srt 3.1 --offset 0.3
 
 ## App Behavior
 
-- The menu bar item is labeled `Sub`.
+- The menu bar item uses the One More Cap template icon.
 - The floating subtitle window stays above normal windows and attempts to join fullscreen Spaces.
 - Drag `.srt`, `.vtt`, or `.webvtt` files onto the subtitle window to replace the active subtitle.
 - Hover over the subtitle window to reveal the Liquid Glass toolbar and the
@@ -168,7 +168,7 @@ mise exec -- swift run SubtitleHarness at Fixtures/sample.srt 3.1 --offset 0.3
 
 ## Automation Permission
 
-The app reads QuickTime Player's current movie time through QuickTime's scripting interface for Sync calibration. macOS may require Automation permission for that behavior. If the hover Sync control cannot read QuickTime Player, use the menu item `Open Automation Settings...`, then allow Subtitles to read QuickTime Player in System Settings. The menu and hover controls remain usable without that permission.
+The app reads QuickTime Player's current movie time through QuickTime's scripting interface for Sync calibration. macOS may require Automation permission for that behavior. If the hover Sync control cannot read QuickTime Player, use the menu item `Open Automation Settings...`, then allow One More Cap to read QuickTime Player in System Settings. The menu and hover controls remain usable without that permission.
 
 GitHub/full builds also include an Apple TV sync target. That path reads TV.app
 through Accessibility and is intentionally excluded from the App Store channel.

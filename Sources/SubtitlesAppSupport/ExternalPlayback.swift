@@ -71,9 +71,9 @@ public enum ExternalPlaybackError: Error, Equatable, LocalizedError, Sendable {
         case let .notRunning(appName):
             return "\(appName) is not running."
         case let .accessibilityPermissionDenied(appName):
-            return "Accessibility permission for Subtitles to read \(appName) is not granted."
+            return "Accessibility permission for One More Cap to read \(appName) is not granted."
         case let .automationPermissionDenied(appName):
-            return "Automation permission for Subtitles to read \(appName) is not granted."
+            return "Automation permission for One More Cap to read \(appName) is not granted."
         case let .missingDocument(appName):
             return "\(appName) does not have an open movie document."
         case let .missingPosition(appName):
